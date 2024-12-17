@@ -2,6 +2,8 @@ import concurrent
 import inspect
 import itertools
 import os
+import sys
+import getopt
 import traceback
 from abc import abstractmethod
 from concurrent.futures.process import ProcessPoolExecutor
@@ -9,6 +11,8 @@ from datetime import datetime
 
 import pandas as pd
 
+
+print_process = False
 
 class canshu_lei:
     def __init__(self, filename):
@@ -329,9 +333,10 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
 
             self.jinqiXingao = 0
-            print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}--'
-                  f'price {self.currentPrice}--'
-                  f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}--'
+                      f'price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
 
         if (self.duotouChicang > 0
                 and self.jinqiXingao > 0.001
@@ -339,10 +344,11 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.dangqianZongjine = self.dangqianZongjine - self.currentPrice
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
-            print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}-- '
-                  f'price {self.currentPrice}--'
-                  f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
-                  f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}-- '
+                      f'price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
+                      f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
             self.jinqiXingao = self.currentPrice
             self.duotouZhisun = self.canshu.zhisun_rates[0]
             self.lengjingqi = 0
@@ -361,9 +367,10 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
 
             self.jinqiXindi = self.currentPrice
-            print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}--'
-                  f'price {self.currentPrice}--'
-                  f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}--'
+                      f'price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
 
         if (self.kongtouChicang > 0
                 and self.jinqiXindi > 0.001
@@ -371,10 +378,11 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.dangqianZongjine = self.dangqianZongjine + self.currentPrice
             self.kongtouChicang = self.kongtouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
-            print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}'
-                  f'--price {self.currentPrice}--'
-                  f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--'
-                  f'--zhisunlv {self.kongtouZhisun}--didian{self.jinqiXindi}--kong ping')
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}'
+                      f'--price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--'
+                      f'--zhisunlv {self.kongtouZhisun}--didian{self.jinqiXindi}--kong ping')
             self.jinqiXindi = self.currentPrice
             self.kongtouZhisun = self.canshu.zhisun_rates[0]
             self.lengjingqi = 0
@@ -405,8 +413,9 @@ class suijimanbuZuocejiaoyiCelue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
 
             self.jinqiXingao = 0
-            print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
-                  f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
 
         if (self.duotouChicang > 0
                 and self.jinqiXingao > 0.001
@@ -414,9 +423,10 @@ class suijimanbuZuocejiaoyiCelue(jiaoyiCelue):
             self.dangqianZongjine = self.dangqianZongjine - self.currentPrice
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
-            print(f'{self.data.loc[self.currentIndex, '日期']}---- price {self.currentPrice}--'
-                  f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
-                  f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, '日期']}---- price {self.currentPrice}--'
+                    f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
+                    f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
             self.jinqiXingao = self.currentPrice
             self.duotouZhisun = self.canshu.zhisun_rates[0]
             self.lengjingqi = 0
@@ -651,7 +661,7 @@ def line_product(filename):
 
     print(filename)
     filepath = 'line/' + filename
-    fileOutPath = f'out/data_{filename}.csv'
+    fileOutPath = f'data_out/data_{filename}.csv'
     df = None
     if os.path.exists(fileOutPath):
         df = pd.read_csv(fileOutPath, header=0, low_memory=False)
@@ -672,10 +682,10 @@ def line_product(filename):
         else:
             df['shijian'] = 8
 
-        junxianlist = [2, 8, 16, 32, 64, 128, 256]
+        junxianlist = [2, 8, 16, 32, 64, 128, 256, 512, 1024]
         df = junxianJisuan(df, junxianlist)
-        if not os.path.exists('out'):
-            os.makedirs('out')
+        if not os.path.exists('data_out'):
+            os.makedirs('data_out')
         df.to_csv(fileOutPath)
 
     with ProcessPoolExecutor(max_workers=16) as executor:
@@ -712,4 +722,14 @@ def process():
 
 
 if __name__ == '__main__':
+    argv = sys.argv[1:]
+    try:
+        opts, args = getopt.getopt(argv, 'a:', 'print_process=')
+    except:
+        print('error')
+
+    for opt, arg in opts:
+        if opt in ['-a', 'print_process']:
+            print_process = arg
+
     process()
