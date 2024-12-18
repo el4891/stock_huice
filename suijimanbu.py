@@ -71,8 +71,9 @@ class jiaoyiCelue:
         self.result.loc[0, '当前gujia'] = df.loc[df['日期'].size - 1, 'shoupan']
         self.result.loc[0, 'sell_win'] = 0 - self.dangqianZongjine
         self.result.loc[0, 'day_win'] = self.result.loc[0, 'sell_win'] / self.result.loc[0, 'processDay']
-        if self.result.loc[0, 'day_win'] > 0:
-            print(f'yingli --- {self.result.loc[0, 'day_win']}--{vars(self.canshu)}')
+        self.result.loc[0, 'day_win_rate'] = self.result.loc[0, 'day_win'] /df.loc[df['日期'].size - 1, f'{self.canshu.lines[4]}_junxian'] 
+        if self.result.loc[0, 'day_win_rate'] > 0.0002:
+            print(f'yingli --- {format(self.result.loc[0, 'day_win'], '.6f')}--{format(self.result.loc[0, 'day_win_rate'], '.6f')}---{vars(self.canshu)}')
 
 
 class jizhuanwanCelue(jiaoyiCelue):
@@ -729,7 +730,7 @@ def jieguoChuli(result, canshu):
     result.loc[0, 'zone_day'] = canshu.zoneCalDays
     result.loc[0, 'parts'] = canshu.parts
 
-    if result.loc[0, 'day_win'] > 0.3:
+    if result.loc[0, 'day_win_rate'] > 0.0002:
         # 获取当前时间并格式化为字符串
         now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
         # 生成的目录路径
@@ -771,7 +772,7 @@ def process_data(canshu, df_in):
     #     jieguoChuli(result, canshu)
     # except Exception as e:
     #     traceback.print_exc()
-    '''
+
     try:
         result = pd.DataFrame(
             columns=['gu票', 'totalMoney', '总gu数', '平均gujia', '当前gujia', 'sell_win', 'processDay', 'day_win'])
@@ -784,7 +785,7 @@ def process_data(canshu, df_in):
         jieguoChuli(result, canshu)
     except Exception as e:
         traceback.print_exc()
-    '''
+
  
     '''
     try:
