@@ -74,8 +74,8 @@ class jiaoyiCelue:
         self.result.loc[0, 'day_win_rate'] = (self.result.loc[0, 'day_win']
                                               / df.loc[df['日期'].size - 1, f'{self.canshu.lines[4]}_junxian'])
         if self.result.loc[0, 'day_win_rate'] > 0.00001:
-            print(f'yingli --- {format(self.result.loc[0, 'day_win'], '.6f')}--'
-                  f'{format(self.result.loc[0, 'day_win_rate'], '.6f')}---{vars(self.canshu)}')
+            print(f'yingli --- {format(self.result.loc[0, "day_win"], ".6f")}--'
+                  f'{format(self.result.loc[0, "day_win_rate"], ".6f")}---{vars(self.canshu)}')
 
 
 class jizhuanwanCelue(jiaoyiCelue):
@@ -103,7 +103,7 @@ class jizhuanwanCelue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
 
             self.jinqiXingao = 0
-            print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
+            print(f'{self.data.loc[self.currentIndex, "日期"]}--price {self.currentPrice}--'
                   f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
         if (self.duotouChicang > 0
                 and self.jinqiXingao > 0.001
@@ -112,7 +112,7 @@ class jizhuanwanCelue(jiaoyiCelue):
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             self.jinqiXingao = self.currentPrice
-            print(f'{self.data.loc[self.currentIndex, '日期']}----'
+            print(f'{self.data.loc[self.currentIndex, "日期"]}----'
                   f'price {self.currentPrice}--'
                   f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--gaodian{self.jinqiXingao}--duo ping')
         elif self.currentPrice > self.jinqiXingao:
@@ -140,7 +140,7 @@ class jizhuanwanCelue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
 
             self.jinqiXindi = self.currentPrice
-            print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
+            print(f'{self.data.loc[self.currentIndex, "日期"]}--price {self.currentPrice}--'
                   f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
         if (self.kongtouChicang > 0
                 and self.jinqiXindi > 0.001
@@ -149,7 +149,7 @@ class jizhuanwanCelue(jiaoyiCelue):
             self.kongtouChicang = self.kongtouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             self.jinqiXindi = self.currentPrice
-            print(f'{self.data.loc[self.currentIndex, '日期']}----price {self.currentPrice}--'
+            print(f'{self.data.loc[self.currentIndex, "日期"]}----price {self.currentPrice}--'
                   f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--didian{self.jinqiXindi}--kong ping')
         elif self.currentPrice < self.jinqiXindi:
             self.jinqiXindi = self.currentPrice
@@ -175,7 +175,7 @@ class sanyangkaitaiCelue(jiaoyiCelue):
 
             self.jinqiXingao = 0
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
         if (self.duotouChicang > 0
                 and self.jinqiXingao > 0.001
@@ -185,7 +185,7 @@ class sanyangkaitaiCelue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
             self.jinqiXingao = self.currentPrice
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}----'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}----'
                       f'price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
                       f'gaodian{self.jinqiXingao}--duo ping')
@@ -209,7 +209,7 @@ class sanyangkaitaiCelue(jiaoyiCelue):
 
             self.jinqiXindi = self.currentPrice
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
         if (self.kongtouChicang > 0
                 and self.jinqiXindi > 0.001
@@ -219,7 +219,7 @@ class sanyangkaitaiCelue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
             self.jinqiXindi = self.currentPrice
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}----price {self.currentPrice}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}----price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--'
                       f'didian{self.jinqiXindi}--kong ping')
         elif self.currentPrice < self.jinqiXindi:
@@ -240,7 +240,7 @@ class junxianChuanyue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
 
             self.jinqiXingao = 0
-            print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
+            print(f'{self.data.loc[self.currentIndex, "日期"]}--price {self.currentPrice}--'
                   f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
         if (self.duotouChicang > 0
                 and self.jinqiXingao > 0.001
@@ -249,7 +249,7 @@ class junxianChuanyue(jiaoyiCelue):
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             self.jinqiXingao = self.currentPrice
-            print(f'{self.data.loc[self.currentIndex, '日期']}----'
+            print(f'{self.data.loc[self.currentIndex, "日期"]}----'
                   f'price {self.currentPrice}--'
                   f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--gaodian{self.jinqiXingao}--duo ping')
         elif self.currentPrice > self.jinqiXingao:
@@ -267,7 +267,7 @@ class junxianChuanyue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
 
             self.jinqiXindi = self.currentPrice
-            print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
+            print(f'{self.data.loc[self.currentIndex, "日期"]}--price {self.currentPrice}--'
                   f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
         if (self.kongtouChicang > 0
                 and self.jinqiXindi > 0.001
@@ -276,7 +276,7 @@ class junxianChuanyue(jiaoyiCelue):
             self.kongtouChicang = self.kongtouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             self.jinqiXindi = self.currentPrice
-            print(f'{self.data.loc[self.currentIndex, '日期']}----price {self.currentPrice}--'
+            print(f'{self.data.loc[self.currentIndex, "日期"]}----price {self.currentPrice}--'
                   f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--didian{self.jinqiXindi}--kong ping')
         elif self.currentPrice < self.jinqiXindi:
             self.jinqiXindi = self.currentPrice
@@ -391,12 +391,14 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
         self.kongtouZhisun = canshu.zhisun_rates[0]
         self.lengjingqi = 0
         self.lengjingqiYuzhi = canshu.zoneCalDays
+        self.duotouMairuJia = 0.0
+        self.kongtouMairuJia = 100000000.0
 
     def duotouCaozuo(self):
 
         self.lengjingqi = self.lengjingqi + 1
 
-        if (self.duotouChicang <= 0 and self.lengjingqi > self.lengjingqiYuzhi
+        if (self.duotouChicang <= 0 and self.kongtouChicang <= 0 and self.lengjingqi > self.lengjingqiYuzhi
                 and self.data.loc[self.currentIndex, f'{self.canshu.lines[0]}_junxian']
                 > self.data.loc[self.currentIndex, f'{self.canshu.lines[1]}_junxian']
                 > self.data.loc[self.currentIndex, f'{self.canshu.lines[2]}_junxian']
@@ -405,10 +407,11 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.dangqianZongjine = self.dangqianZongjine + self.currentPrice
             self.duotouChicang = self.duotouChicang + 1
             self.caozuoCishu = self.caozuoCishu + 1
+            self.duotouMairuJia = self.currentPrice
 
             self.jinqiXingao = 0
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}--'
                       f'price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
 
@@ -419,7 +422,7 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}-- '
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}-- '
                       f'price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
                       f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
@@ -430,7 +433,7 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.jinqiXingao = self.currentPrice
 
     def kongtouCaozuo(self):
-        if (self.kongtouChicang <= 0 and self.lengjingqi > self.lengjingqiYuzhi
+        if (self.kongtouChicang <= 0 and self.duotouChicang <= 0 and self.lengjingqi > self.lengjingqiYuzhi
                 and self.data.loc[self.currentIndex, f'{self.canshu.lines[0]}_junxian']
                 < self.data.loc[self.currentIndex, f'{self.canshu.lines[1]}_junxian']
                 < self.data.loc[self.currentIndex, f'{self.canshu.lines[2]}_junxian']
@@ -439,10 +442,11 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.dangqianZongjine = self.dangqianZongjine - self.currentPrice
             self.kongtouChicang = self.kongtouChicang + 1
             self.caozuoCishu = self.caozuoCishu + 1
+            self.kongtouMairuJia = self.currentPrice
 
             self.jinqiXindi = self.currentPrice
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}--'
                       f'price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
 
@@ -453,7 +457,7 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.kongtouChicang = self.kongtouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}'
                       f'--price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--'
                       f'--zhisunlv {self.kongtouZhisun}--didian{self.jinqiXindi}--kong ping')
@@ -488,7 +492,7 @@ class suijimanbuZuocejiaoyiCelue(jiaoyiCelue):
 
             self.jinqiXingao = 0
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--price {self.currentPrice}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
 
         if (self.duotouChicang > 0
@@ -498,7 +502,7 @@ class suijimanbuZuocejiaoyiCelue(jiaoyiCelue):
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}---- price {self.currentPrice}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}---- price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
                       f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
             self.jinqiXingao = self.currentPrice
@@ -565,7 +569,7 @@ class suijimanbuYouceZhiyinCelue(jiaoyiCelue):
 
             self.jinqiXingao = 0
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}--'
                       f'price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
 
@@ -577,7 +581,7 @@ class suijimanbuYouceZhiyinCelue(jiaoyiCelue):
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}-- '
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}-- '
                       f'price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
                       f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
@@ -601,7 +605,7 @@ class suijimanbuYouceZhiyinCelue(jiaoyiCelue):
 
             self.jinqiXindi = self.currentPrice
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}--'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}--'
                       f'price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
 
@@ -613,7 +617,7 @@ class suijimanbuYouceZhiyinCelue(jiaoyiCelue):
             self.kongtouChicang = self.kongtouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
             if print_process:
-                print(f'{self.data.loc[self.currentIndex, '日期']}--{self.data.loc[self.currentIndex, 'shijian']}'
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}'
                       f'--price {self.currentPrice}--'
                       f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--'
                       f'--zhisunlv {self.kongtouZhisun}--didian{self.jinqiXindi}--kong ping')
@@ -735,7 +739,7 @@ def jieguoChuli(result, canshu):
     result.loc[0, 'zone_day'] = canshu.zoneCalDays
     result.loc[0, 'parts'] = canshu.parts
 
-    if result.loc[0, 'day_win_rate'] > 0.0002:
+    if result.loc[0, 'day_win_rate'] > 0.00001:
         # 获取当前时间并格式化为字符串
         now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
         # 生成的目录路径
@@ -841,7 +845,7 @@ def line_product(filename):
     line3_list = [64]
     line4_list = [128]
     line5_list = [256]
-    zhisun_rate_list1 = [0.015]
+    zhisun_rate_list1 = [0.002, 0.005,0.01,  0.015, 0.02]
     zhisun_rate_list2 = [0.3]
     zhisun_rate_list3 = [0.4]
     max_gushu_list = [8]
