@@ -1,9 +1,9 @@
 import concurrent
+import getopt
 import inspect
 import itertools
 import os
 import sys
-import getopt
 import traceback
 from abc import abstractmethod
 from concurrent.futures.process import ProcessPoolExecutor
@@ -11,8 +11,8 @@ from datetime import datetime
 
 import pandas as pd
 
-
 print_process = False
+
 
 class canshu_lei:
     def __init__(self, filename):
@@ -71,9 +71,11 @@ class jiaoyiCelue:
         self.result.loc[0, '当前gujia'] = df.loc[df['日期'].size - 1, 'shoupan']
         self.result.loc[0, 'sell_win'] = 0 - self.dangqianZongjine
         self.result.loc[0, 'day_win'] = self.result.loc[0, 'sell_win'] / self.result.loc[0, 'processDay']
-        self.result.loc[0, 'day_win_rate'] = self.result.loc[0, 'day_win'] /df.loc[df['日期'].size - 1, f'{self.canshu.lines[4]}_junxian'] 
-        if self.result.loc[0, 'day_win_rate'] > 0.0002:
-            print(f'yingli --- {format(self.result.loc[0, 'day_win'], '.6f')}--{format(self.result.loc[0, 'day_win_rate'], '.6f')}---{vars(self.canshu)}')
+        self.result.loc[0, 'day_win_rate'] = (self.result.loc[0, 'day_win']
+                                              / df.loc[df['日期'].size - 1, f'{self.canshu.lines[4]}_junxian'])
+        if self.result.loc[0, 'day_win_rate'] > 0.00001:
+            print(f'yingli --- {format(self.result.loc[0, 'day_win'], '.6f')}--'
+                  f'{format(self.result.loc[0, 'day_win_rate'], '.6f')}---{vars(self.canshu)}')
 
 
 class jizhuanwanCelue(jiaoyiCelue):
@@ -152,6 +154,7 @@ class jizhuanwanCelue(jiaoyiCelue):
         elif self.currentPrice < self.jinqiXindi:
             self.jinqiXindi = self.currentPrice
 
+
 class sanyangkaitaiCelue(jiaoyiCelue):
     def duotouCaozuo(self):
 
@@ -184,7 +187,8 @@ class sanyangkaitaiCelue(jiaoyiCelue):
             if print_process:
                 print(f'{self.data.loc[self.currentIndex, '日期']}----'
                       f'price {self.currentPrice}--'
-                      f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--gaodian{self.jinqiXingao}--duo ping')
+                      f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
+                      f'gaodian{self.jinqiXingao}--duo ping')
         elif self.currentPrice > self.jinqiXingao:
             self.jinqiXingao = self.currentPrice
 
@@ -216,10 +220,10 @@ class sanyangkaitaiCelue(jiaoyiCelue):
             self.jinqiXindi = self.currentPrice
             if print_process:
                 print(f'{self.data.loc[self.currentIndex, '日期']}----price {self.currentPrice}--'
-                      f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--didian{self.jinqiXindi}--kong ping')
+                      f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--'
+                      f'didian{self.jinqiXindi}--kong ping')
         elif self.currentPrice < self.jinqiXindi:
             self.jinqiXindi = self.currentPrice
-
 
 
 class junxianChuanyue(jiaoyiCelue):
@@ -495,8 +499,8 @@ class suijimanbuZuocejiaoyiCelue(jiaoyiCelue):
             self.caozuoCishu = self.caozuoCishu + 1
             if print_process:
                 print(f'{self.data.loc[self.currentIndex, '日期']}---- price {self.currentPrice}--'
-                    f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
-                    f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
+                      f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
+                      f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
             self.jinqiXingao = self.currentPrice
             self.duotouZhisun = self.canshu.zhisun_rates[0]
             self.lengjingqi = 0
@@ -533,6 +537,7 @@ class suijimanbuZuocejiaoyiCelue(jiaoyiCelue):
         elif self.currentPrice < self.jinqiXindi:
             self.jinqiXindi = self.currentPrice
 
+
 class suijimanbuYouceZhiyinCelue(jiaoyiCelue):
     def __init__(self, pdData, canshu, result):
         super().__init__(pdData, canshu, result)
@@ -565,9 +570,9 @@ class suijimanbuYouceZhiyinCelue(jiaoyiCelue):
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
 
         if (self.duotouChicang > 0
-            and ((self.jinqiXingao > 0.001
-                    and self.currentPrice < self.jinqiXingao * (1 - self.duotouZhisun))
-                or (self.currentPrice > self.duotouMairuJia * (1 + self.duotouZhisun * 2)))):
+                and ((self.jinqiXingao > 0.001
+                      and self.currentPrice < self.jinqiXingao * (1 - self.duotouZhisun))
+                     or (self.currentPrice > self.duotouMairuJia * (1 + self.duotouZhisun * 2)))):
             self.dangqianZongjine = self.dangqianZongjine - self.currentPrice
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
@@ -601,9 +606,9 @@ class suijimanbuYouceZhiyinCelue(jiaoyiCelue):
                       f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
 
         if (self.kongtouChicang > 0
-            and ((self.jinqiXindi > 0.001
-                    and self.currentPrice > self.jinqiXindi * (1 + self.kongtouZhisun))
-                or (self.currentPrice < self.kongtouMairuJia * (1 - self.kongtouZhisun * 2)))):
+                and ((self.jinqiXindi > 0.001
+                      and self.currentPrice > self.jinqiXindi * (1 + self.kongtouZhisun))
+                     or (self.currentPrice < self.kongtouMairuJia * (1 - self.kongtouZhisun * 2)))):
             self.dangqianZongjine = self.dangqianZongjine + self.currentPrice
             self.kongtouChicang = self.kongtouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
@@ -786,7 +791,6 @@ def process_data(canshu, df_in):
     except Exception as e:
         traceback.print_exc()
 
- 
     '''
     try:
         result = pd.DataFrame(
@@ -801,7 +805,7 @@ def process_data(canshu, df_in):
     except Exception as e:
         traceback.print_exc()
     '''
-
+    '''
     try:
         result = pd.DataFrame(
             columns=['gu票', 'totalMoney', '总gu数', '平均gujia', '当前gujia', 'sell_win', 'processDay', 'day_win'])
@@ -814,8 +818,7 @@ def process_data(canshu, df_in):
         jieguoChuli(result, canshu)
     except Exception as e:
         traceback.print_exc()
-
-
+    '''
 
     return 1
 
