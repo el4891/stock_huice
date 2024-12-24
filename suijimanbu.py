@@ -627,6 +627,99 @@ class suijimanbuYouceZhiyinCelue(jiaoyiCelue):
         elif self.currentPrice < self.jinqiXindi:
             self.jinqiXindi = self.currentPrice
 
+class suijimanbuYouceZengqiangCelue(jiaoyiCelue):
+    def __init__(self, pdData, canshu, result):
+        super().__init__(pdData, canshu, result)
+        self.duotouZhisun = canshu.zhisun_rates[0]
+        self.kongtouZhisun = canshu.zhisun_rates[0]
+        self.lengjingqi = 0
+        self.lengjingqiYuzhi = canshu.zoneCalDays
+        self.duotouMairuJia = 0.0
+        self.kongtouMairuJia = 100000000.0
+
+    def duotouCaozuo(self):
+
+        self.lengjingqi = self.lengjingqi + 1
+
+        if (self.duotouChicang <= 0 and self.kongtouChicang <= 0 and self.lengjingqi > self.lengjingqiYuzhi
+                and self.data.loc[self.currentIndex, f'{self.canshu.lines[0]}_junxian']
+                > self.data.loc[self.currentIndex, f'{self.canshu.lines[1]}_junxian']
+                > self.data.loc[self.currentIndex, f'{self.canshu.lines[2]}_junxian']
+                > self.data.loc[self.currentIndex, f'{self.canshu.lines[3]}_junxian']
+                > self.data.loc[self.currentIndex, f'{self.canshu.lines[4]}_junxian']
+                and  self.data.loc[self.currentIndex- 10, f'{self.canshu.lines[0]}_junxian']
+                > self.data.loc[self.currentIndex - 10, f'{self.canshu.lines[1]}_junxian']
+                > self.data.loc[self.currentIndex- 10, f'{self.canshu.lines[2]}_junxian']
+                > self.data.loc[self.currentIndex- 10, f'{self.canshu.lines[3]}_junxian']
+                > self.data.loc[self.currentIndex - 10, f'{self.canshu.lines[4]}_junxian']):
+            self.dangqianZongjine = self.dangqianZongjine + self.currentPrice
+            self.duotouChicang = self.duotouChicang + 1
+            self.caozuoCishu = self.caozuoCishu + 1
+            self.duotouMairuJia = self.currentPrice
+
+            self.jinqiXingao = 0
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}--'
+                      f'price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--duo buy')
+
+        if (self.duotouChicang > 0
+                and self.jinqiXingao > 0.001
+                and self.currentPrice < self.jinqiXingao * (1 - self.duotouZhisun)):
+            self.dangqianZongjine = self.dangqianZongjine - self.currentPrice
+            self.duotouChicang = self.duotouChicang - 1
+            self.caozuoCishu = self.caozuoCishu + 1
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}-- '
+                      f'price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
+                      f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
+            self.jinqiXingao = self.currentPrice
+            self.duotouZhisun = self.canshu.zhisun_rates[0]
+            self.lengjingqi = 0
+        elif self.currentPrice > self.jinqiXingao:
+            self.jinqiXingao = self.currentPrice
+
+    def kongtouCaozuo(self):
+        if (self.kongtouChicang <= 0 and self.duotouChicang <= 0 and self.lengjingqi > self.lengjingqiYuzhi
+                and self.data.loc[self.currentIndex, f'{self.canshu.lines[0]}_junxian']
+                < self.data.loc[self.currentIndex, f'{self.canshu.lines[1]}_junxian']
+                < self.data.loc[self.currentIndex, f'{self.canshu.lines[2]}_junxian']
+                < self.data.loc[self.currentIndex, f'{self.canshu.lines[3]}_junxian']
+                < self.data.loc[self.currentIndex, f'{self.canshu.lines[4]}_junxian']
+                and self.data.loc[self.currentIndex -10, f'{self.canshu.lines[0]}_junxian']
+                < self.data.loc[self.currentIndex-10, f'{self.canshu.lines[1]}_junxian']
+                < self.data.loc[self.currentIndex-10, f'{self.canshu.lines[2]}_junxian']
+                < self.data.loc[self.currentIndex-10, f'{self.canshu.lines[3]}_junxian']
+                < self.data.loc[self.currentIndex-10, f'{self.canshu.lines[4]}_junxian']):
+            self.dangqianZongjine = self.dangqianZongjine - self.currentPrice
+            self.kongtouChicang = self.kongtouChicang + 1
+            self.caozuoCishu = self.caozuoCishu + 1
+            self.kongtouMairuJia = self.currentPrice
+
+            self.jinqiXindi = self.currentPrice
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}--'
+                      f'price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--kong sell')
+
+        if (self.kongtouChicang > 0
+                and self.jinqiXindi > 0.001
+                and self.currentPrice > self.jinqiXindi * (1 + self.kongtouZhisun)):
+            self.dangqianZongjine = self.dangqianZongjine + self.currentPrice
+            self.kongtouChicang = self.kongtouChicang - 1
+            self.caozuoCishu = self.caozuoCishu + 1
+            if print_process:
+                print(f'{self.data.loc[self.currentIndex, "日期"]}--{self.data.loc[self.currentIndex, "shijian"]}'
+                      f'--price {self.currentPrice}--'
+                      f'total jine {self.dangqianZongjine}--gushu{self.kongtouChicang}--'
+                      f'--zhisunlv {self.kongtouZhisun}--didian{self.jinqiXindi}--kong ping')
+            self.jinqiXindi = self.currentPrice
+            self.kongtouZhisun = self.canshu.zhisun_rates[0]
+            self.lengjingqi = 0
+        elif self.currentPrice < self.jinqiXindi:
+            self.jinqiXindi = self.currentPrice
+
 
 class process_lei:
     def __init__(self, canshu):
@@ -795,6 +888,20 @@ def process_data(canshu, df_in):
     except Exception as e:
         traceback.print_exc()
 
+    try:
+        result = pd.DataFrame(
+            columns=['gu票', 'totalMoney', '总gu数', '平均gujia', '当前gujia', 'sell_win', 'processDay', 'day_win'])
+
+        celue = suijimanbuYouceZengqiangCelue(df, canshu, result)
+        celue.caozuo()
+        result = celue.getResult()
+        result.loc[0, f'celueMing{celueJishu}'] = celue.__class__.__name__
+        celueJishu = celueJishu + 1
+        jieguoChuli(result, canshu)
+    except Exception as e:
+        traceback.print_exc()
+
+
     '''
     try:
         result = pd.DataFrame(
@@ -845,7 +952,7 @@ def line_product(filename):
     line3_list = [64]
     line4_list = [128]
     line5_list = [256]
-    zhisun_rate_list1 = [0.002, 0.005,0.01,  0.015, 0.02]
+    zhisun_rate_list1 = [0.015]
     zhisun_rate_list2 = [0.3]
     zhisun_rate_list3 = [0.4]
     max_gushu_list = [8]
