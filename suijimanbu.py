@@ -22,6 +22,7 @@ class canshu_lei:
         self.zoneCalDays = 200
         self.parts = 3
         self.lines = None
+        self.macd_canshu = None
 
 
 class jiaoyiCelue:
@@ -356,6 +357,9 @@ def get_average_line(df: pd.DataFrame, days):
     data_return['shijian'] = df['shijian']
     data_return['日期'] = df['日期']
     data_return[col_name] = df['shoupan'].rolling(window=days).mean()
+
+    # 保留小数点后几位
+    data_return = data_return.round(decimals=5)
     return data_return
 
 
@@ -417,6 +421,41 @@ def junxianJisuan(dfSrc, list):
     return df
 
 
+def EMA(data, window):
+    return data.ewm(span=window, min_periods=window, adjust=False).mean()
+
+
+def macdJisuanProcess(df: pd.DataFrame, macdZuhe):
+    print(f'{get_average_line.__name__} -- {macdZuhe}')
+    dif_name = f'{macdZuhe[0]}_dif'
+    dea_name = f'{macdZuhe[0]}_dea'
+    macd_name = f'{macdZuhe[0]}_macd'
+    data_return = pd.DataFrame(columns=['日期'])
+
+    data_return['shijian'] = df['shijian']
+    data_return['日期'] = df['日期']
+
+    data_return[dif_name] = EMA(df['shoupan'], macdZuhe[1]) - EMA(df['shoupan'], macdZuhe[2])
+    data_return[dea_name] = EMA(data_return[dif_name], macdZuhe[3])
+    data_return[macd_name] = (data_return[dif_name] - data_return[dea_name]) * 2
+
+    # 保留小数点后几位
+    data_return = data_return.round(decimals=5)
+    return data_return
+
+
+def macdJisuan(dfSrc, macd_list):
+    df = dfSrc
+    with ProcessPoolExecutor(max_workers=16) as executor:
+        results = {executor.submit(macdJisuanProcess, dfSrc, i): i for i in macd_list}
+
+        for future in concurrent.futures.as_completed(results):
+            linei = future.result()
+            df = pd.merge(df, linei, on=['日期', 'shijian'])
+
+    return df
+
+
 def line_product(filename):
     line1_list = [2]
     line2_list = [16]
@@ -429,6 +468,7 @@ def line_product(filename):
     max_gushu_list = [8]
     zoneCalDaysList = [1]
     parts_list = [3]
+    macd_list = [[0, 12, 26, 9], [1, 24, 52, 18]]
 
     print(filename)
     filepath = 'line/' + filename
@@ -455,6 +495,7 @@ def line_product(filename):
 
         junxianlist = [2, 8, 16, 32, 64, 128, 256, 512, 1024]
         df = junxianJisuan(df, junxianlist)
+        df = macdJisuan(df, macd_list)
         if not os.path.exists('data_out'):
             os.makedirs('data_out')
         df.to_csv(fileOutPath)
@@ -462,7 +503,7 @@ def line_product(filename):
     with ProcessPoolExecutor(max_workers=16) as executor:
         for i in itertools.product(line1_list, line2_list, line3_list, line4_list, line5_list,
                                    zhisun_rate_list1, zhisun_rate_list2, zhisun_rate_list3,
-                                   max_gushu_list, zoneCalDaysList, parts_list):
+                                   max_gushu_list, zoneCalDaysList, parts_list, macd_list):
             if i[0] < i[1] < i[2] < i[3] < i[4] and i[5] < i[6] < i[7]:
                 try:
                     canshu = canshu_lei(filename)
@@ -471,6 +512,7 @@ def line_product(filename):
                     canshu.max_gushu = i[8]
                     canshu.zoneCalDays = i[9]
                     canshu.parts = i[10]
+                    canshu.macd_canshu = i[11]
                     print(vars(canshu))
                     executor.submit(process_data, canshu, df)
                 except Exception as e:
