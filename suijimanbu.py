@@ -52,8 +52,9 @@ class jiaoyiCelue:
 
     def caozuo(self):
         df = self.data
+        tiaoguoRiqi = 256
         for i in range(df['日期'].size):
-            if i > 20:
+            if i > tiaoguoRiqi:
                 self.currentPrice = df.loc[i, 'shoupan']
                 self.currentIndex = i
 
@@ -63,7 +64,7 @@ class jiaoyiCelue:
         self.result.loc[0, 'totalMoney'] = (self.dangqianZongjine - df.loc[df['日期'].size - 1, 'shoupan']
                                             * self.duotouChicang
                                             + df.loc[df['日期'].size - 1, 'shoupan'] * self.kongtouChicang)
-        kaishiRiqi = datetime.strptime(str(df.loc[0, '日期']), '%Y%m%d')
+        kaishiRiqi = datetime.strptime(str(df.loc[tiaoguoRiqi, '日期']), '%Y%m%d')
         jiesuRiqi = datetime.strptime(str(df.loc[df.index[-1], '日期']), '%Y%m%d')
 
         self.result.loc[0, 'processDay'] = (jiesuRiqi - kaishiRiqi).days
@@ -351,14 +352,17 @@ def get_average_line(df: pd.DataFrame, days):
     print(f'{get_average_line.__name__} -- {days}')
     col_name = f'{days}_junxian'
     data_return = pd.DataFrame(columns=['日期', col_name])
-    for i in range(df['shoupan'].size - days + 1):
-        data_return.loc[i, '日期'] = df.loc[i + days - 1, '日期']
-        data_return.loc[i, 'shijian'] = df.loc[i + days - 1, 'shijian']
-        if days > 1:
-            data_return.loc[i, col_name] = df.loc[i:i + days - 1, 'shoupan'].mean()
-        else:
-            data_return.loc[i, col_name] = df.loc[i, 'shoupan']
+    # for i in range(df['shoupan'].size - days + 1):
+    #     data_return.loc[i, '日期'] = df.loc[i + days - 1, '日期']
+    #     data_return.loc[i, 'shijian'] = df.loc[i + days - 1, 'shijian']
+    #     if days > 1:
+    #         data_return.loc[i, col_name] = df.loc[i:i + days - 1, 'shoupan'].mean()
+    #     else:
+    #         data_return.loc[i, col_name] = df.loc[i, 'shoupan']
 
+    data_return['shijian'] = df['shijian']
+    data_return['日期'] = df['日期']
+    data_return[col_name] = df['shoupan'].rolling(window=days).mean()
     return data_return
 
 
