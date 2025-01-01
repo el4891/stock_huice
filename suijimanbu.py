@@ -352,13 +352,6 @@ def get_average_line(df: pd.DataFrame, days):
     print(f'{get_average_line.__name__} -- {days}')
     col_name = f'{days}_junxian'
     data_return = pd.DataFrame(columns=['日期', col_name])
-    # for i in range(df['shoupan'].size - days + 1):
-    #     data_return.loc[i, '日期'] = df.loc[i + days - 1, '日期']
-    #     data_return.loc[i, 'shijian'] = df.loc[i + days - 1, 'shijian']
-    #     if days > 1:
-    #         data_return.loc[i, col_name] = df.loc[i:i + days - 1, 'shoupan'].mean()
-    #     else:
-    #         data_return.loc[i, col_name] = df.loc[i, 'shoupan']
 
     data_return['shijian'] = df['shijian']
     data_return['日期'] = df['日期']
