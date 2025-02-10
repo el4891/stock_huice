@@ -39,6 +39,8 @@ class jiaoyiCelue:
         self.result = None
         self.canshu = canshu
         self.result = result
+        self.yinglicishu = 0
+        self.kuisuncishu = 0
 
     def getResult(self):
         return self.result
@@ -77,7 +79,9 @@ class jiaoyiCelue:
                                               / df.loc[df['日期'].size - 1, f'{self.canshu.lines[4]}_junxian'])
         # if self.result.loc[0, 'day_win_rate'] > 0.00001:
         print(f'yingli --- {format(self.result.loc[0, "day_win"], ".6f")} --  '
-              f'{format(self.result.loc[0, "day_win_rate"], ".6f")}  ---  {vars(self.canshu)}')
+              f'{format(self.result.loc[0, "day_win_rate"], ".6f")}  ---  {vars(self.canshu)}]\n --'
+              f' yinglicishu {self.yinglicishu} -- kuisuncishu {self.kuisuncishu}, '
+              f'yinglilv {self.yinglicishu / (self.yinglicishu+self.kuisuncishu)}')
 
 
 class wuxianpuCelue(jiaoyiCelue):
@@ -228,6 +232,10 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.jinqiXingao = self.currentPrice
             self.duotouZhisun = self.canshu.zhisun_rates[0]
             self.lengjingqi = 0
+            if self.duotouMairuJia < self.currentPrice:
+                self.yinglicishu = self.yinglicishu + 1
+            else:
+                self.kuisuncishu = self.kuisuncishu + 1
         elif self.currentPrice > self.jinqiXingao:
             self.jinqiXingao = self.currentPrice
 
@@ -263,8 +271,13 @@ class suijimanbuYouceJiaoyiCelue(jiaoyiCelue):
             self.jinqiXindi = self.currentPrice
             self.kongtouZhisun = self.canshu.zhisun_rates[0]
             self.lengjingqi = 0
+            if self.kongtouMairuJia > self.currentPrice:
+                self.yinglicishu = self.yinglicishu + 1
+            else:
+                self.kuisuncishu = self.kuisuncishu + 1
         elif self.currentPrice < self.jinqiXindi:
             self.jinqiXindi = self.currentPrice
+
 
 class macdJiaochaCelue(jiaoyiCelue):
     def __init__(self, pdData, canshu, result):
@@ -275,6 +288,7 @@ class macdJiaochaCelue(jiaoyiCelue):
         self.lengjingqiYuzhi = canshu.zoneCalDays
         self.duotouMairuJia = 0.0
         self.kongtouMairuJia = 100000000.0
+
 
     def duotouCaozuo(self):
 
@@ -310,8 +324,13 @@ class macdJiaochaCelue(jiaoyiCelue):
                       f'total jine {self.dangqianZongjine}--gushu{self.duotouChicang}--'
                       f'zhisunlv--{self.duotouZhisun}--gaodian {self.jinqiXingao}--duo ping')
             self.jinqiXingao = self.currentPrice
+
             self.duotouZhisun = self.canshu.zhisun_rates[0]
             self.lengjingqi = 0
+            if self.duotouMairuJia < self.currentPrice:
+                self.yinglicishu = self.yinglicishu + 1
+            else:
+                self.kuisuncishu = self.kuisuncishu + 1
         elif self.currentPrice > self.jinqiXingao:
             self.jinqiXingao = self.currentPrice
 
@@ -344,8 +363,13 @@ class macdJiaochaCelue(jiaoyiCelue):
             self.jinqiXindi = self.currentPrice
             self.kongtouZhisun = self.canshu.zhisun_rates[0]
             self.lengjingqi = 0
+            if self.kongtouMairuJia > self.currentPrice:
+                self.yinglicishu = self.yinglicishu + 1
+            else:
+                self.kuisuncishu = self.kuisuncishu + 1
         elif self.currentPrice < self.jinqiXindi:
             self.jinqiXindi = self.currentPrice
+
 
 class process_lei:
     def __init__(self, canshu):
