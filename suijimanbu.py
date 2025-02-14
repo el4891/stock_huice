@@ -313,8 +313,8 @@ class macdJiaochaCelue(jiaoyiCelue):
 
         if (self.duotouChicang > 0
                 and self.jinqiXingao > 0.001
-                and self.currentPrice < self.data.loc[self.currentIndex, f'{self.canshu.lines[3]}_junxian']):
-            # and self.currentPrice < self.jinqiXingao * (1 - self.duotouZhisun)):
+               # and self.currentPrice < self.data.loc[self.currentIndex, f'{self.canshu.lines[3]}_junxian']):
+                and self.currentPrice < self.jinqiXingao * (1 - self.duotouZhisun)):
             self.dangqianZongjine = self.dangqianZongjine - self.currentPrice
             self.duotouChicang = self.duotouChicang - 1
             self.caozuoCishu = self.caozuoCishu + 1
