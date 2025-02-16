@@ -1,16 +1,57 @@
+import os
+
+import akshare as ak
 import pandas as pd
 import pandas_ta as ta
 from matplotlib import pyplot as plt
 
 
+def get_bt_data(df):
+    df = df[['datetime', 'open', 'high', 'low', 'close', 'volume']]
+    df['openinterest'] = 0
+    df['datetime'] = pd.to_datetime(df['datetime'].astype(str))
+    df.set_index('datetime', inplace=True)
+    return df
+
+
+def sina_minute_data(symbol, period):
+    fileOutPath = f'data_sina/data_{symbol}_{period}.csv'
+    if os.path.exists(fileOutPath):
+        df = pd.read_csv(fileOutPath, header=0, low_memory=False)
+        df['datetime'] = pd.to_datetime(df['datetime'].astype(str))
+        df.set_index('datetime', inplace=True)
+    else:
+        df = ak.futures_zh_minute_sina(symbol=symbol, period=period)
+        df = get_bt_data(df)
+        if not os.path.exists('data_sina'):
+            os.makedirs('data_sina')
+        df.to_csv(fileOutPath)
+
+    return df
+
+
+def sina_daily_data(symbol):
+    fileOutPath = f'data_sina/data_{symbol}_daily.csv'
+    if os.path.exists(fileOutPath):
+        df = pd.read_csv(fileOutPath, header=0, low_memory=False)
+        df['datetime'] = pd.to_datetime(df['datetime'].astype(str))
+        df.set_index('datetime', inplace=True)
+    else:
+        df = ak.futures_zh_daily_sina(symbol=symbol)
+        df = df.rename(columns={'date': 'datetime'})
+        df = get_bt_data(df)
+
+        if not os.path.exists('data_sina'):
+            os.makedirs('data_sina')
+        df.to_csv(fileOutPath)
+
+    return df
+
+
 class DataProcessing:
     def __init__(self, filename):
         self.filename = filename
-        self.dataFrame = pd.read_csv(filename, header=1, low_memory=False).iloc[:-1]
-
-        self.__col_processing()
-        self.cal_strategy()
-        self.draw_plot()
+        self.dataFrame = None
 
     def cal_strategy(self):
         # self.dataFrame.ta.strategy("All")
@@ -53,4 +94,10 @@ class DataProcessing:
         plt.show()
 
     def get_data(self):
+        self.dataFrame = pd.read_csv(self.filename, header=1, low_memory=False).iloc[:-1]
+
+        self.__col_processing()
+        self.cal_strategy()
+        self.draw_plot()
+
         return self.dataFrame
