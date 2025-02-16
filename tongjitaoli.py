@@ -48,19 +48,19 @@ class PairTradingStrategy(bt.Strategy):
         if not chicang:
             # 如果价差偏离均值超过开仓阈值，开仓
             if z_score > self.params.entry_z:
-                print(f'卖出1 买入2')
+                print(f'sell 1 buy 2')
                 self.sell(data=self.stock1, size=1)  # 卖出股票1
                 self.buy(data=self.stock2)  # 买入股票2
             elif z_score < -self.params.entry_z:
-                print(f'卖出2 买入1')
+                print(f'sell 2 buy 1')
                 self.buy(data=self.stock1, size=1)  # 买入股票1
                 self.sell(data=self.stock2)  # 卖出股票2
         # 如果已经持仓
         else:
             if z_score > self.params.entry_z:
-                print(f'可以卖出1 买入2')
+                print(f'you can sell 1 buy 2')
             elif z_score < -self.params.entry_z:
-                print(f'可以卖出2 买入1')
+                print(f'you can sell 2 buy 1')
 
             # 如果价差回归均值，平仓
             if abs(z_score) < self.params.exit_z:
