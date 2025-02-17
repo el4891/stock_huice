@@ -6,12 +6,11 @@ from data_process import data_processing
 class PairTradingStrategy(bt.Strategy):
     params = (
         ('window', 512),  # 用于计算均值和标准差的窗口期
-        ('entry_z', 2.2),  # 开仓阈值（标准差倍数）
-        ('exit_z', 1),  # 平仓阈值（标准差倍数）
+        ('entry_z', 2),  # 开仓阈值（标准差倍数）
+        ('exit_z', 0.5),  # 平仓阈值（标准差倍数）
     )
 
     def __init__(self):
-        # 获取两只股票的数据
         self.stock1 = self.datas[0]
         self.stock2 = self.datas[1]
 
@@ -44,26 +43,31 @@ class PairTradingStrategy(bt.Strategy):
                 chicang = True
                 break
 
-        # 如果没有持仓
         if not chicang:
-            # 如果价差偏离均值超过开仓阈值，开仓
             if z_score > self.params.entry_z:
                 print(f'sell 1 buy 2')
-                self.sell(data=self.stock1, size=1)  # 卖出股票1
-                self.buy(data=self.stock2)  # 买入股票2
+                print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
+
+                self.sell(data=self.stock1, size=1) 
+                self.buy(data=self.stock2)
             elif z_score < -self.params.entry_z:
                 print(f'sell 2 buy 1')
-                self.buy(data=self.stock1, size=1)  # 买入股票1
-                self.sell(data=self.stock2)  # 卖出股票2
-        # 如果已经持仓
+                print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
+
+                self.buy(data=self.stock1, size=1)
+                self.sell(data=self.stock2)
         else:
             if z_score > self.params.entry_z:
                 print(f'you can sell 1 buy 2')
             elif z_score < -self.params.entry_z:
                 print(f'you can sell 2 buy 1')
 
-            # 如果价差回归均值，平仓
             if abs(z_score) < self.params.exit_z:
+                print(f"当前时间: {current_time}")
+                print(f'zscore: {z_score}')
+                print(f'close')
+                print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
+
                 self.close(data=self.stock1)
                 self.close(data=self.stock2)
 
@@ -87,8 +91,8 @@ if __name__ == '__main__':
         # df1 = data_processing.sina_daily_data('RB0')
         # df2 = data_processing.sina_daily_data('HC0')
 
-        df1 = data_processing.sina_minute_data(item[0], 30)
-        df2 = data_processing.sina_minute_data(item[1], 30)
+        df1 = data_processing.sina_minute_data(item[0], 60)
+        df2 = data_processing.sina_minute_data(item[1], 60)
 
         cerebro = bt.Cerebro()
 
