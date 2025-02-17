@@ -5,8 +5,8 @@ from data_process import data_processing
 
 class PairTradingStrategy(bt.Strategy):
     params = (
-        ('window', 256),  # 用于计算均值和标准差的窗口期
-        ('entry_z', 2.8),  # 开仓阈值（标准差倍数）
+        ('window', 512),  # 用于计算均值和标准差的窗口期
+        ('entry_z', 2.2),  # 开仓阈值（标准差倍数）
         ('exit_z', 1),  # 平仓阈值（标准差倍数）
     )
 
