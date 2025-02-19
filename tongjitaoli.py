@@ -6,7 +6,7 @@ from data_process import data_processing
 class PairTradingStrategy(bt.Strategy):
     params = (
         ('window', 512),  # 用于计算均值和标准差的窗口期
-        ('entry_z', 2),  # 开仓阈值（标准差倍数）
+        ('entry_z', 1.8),  # 开仓阈值（标准差倍数）
         ('exit_z', 0.5),  # 平仓阈值（标准差倍数）
     )
 
@@ -109,7 +109,6 @@ if __name__ == '__main__':
         # 添加策略
         cerebro.addstrategy(PairTradingStrategy)
 
-        # 设置初始资金
         cerebro.broker.set_cash(100000)
         cerebro.broker.setcommission(commission=0.001)
 
@@ -118,6 +117,11 @@ if __name__ == '__main__':
         cerebro.run()
         print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
         print(item)
+
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe_ratio')
+        results = cerebro.run()
+        strat = results[0]
+        print(strat.analyzers.sharpe_ratio.get_analysis())
         print('-----------------------------------------------------------')
         # 绘制结果
         # cerebro.plot()
