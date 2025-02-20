@@ -5,24 +5,21 @@ from data_process import data_processing
 
 class PairTradingStrategy(bt.Strategy):
     params = (
-        ('window', 512),  # 用于计算均值和标准差的窗口期
-        ('entry_z', 1.8),  # 开仓阈值（标准差倍数）
-        ('exit_z', 0.5),  # 平仓阈值（标准差倍数）
-    )
+        ('window', 512),  
+        ('entry_z', 1.8), 
+        ('exit_z', 0.5),  
+        )
 
     def __init__(self):
         self.stock1 = self.datas[0]
         self.stock2 = self.datas[1]
 
-        # 计算价差
         self.spread = self.stock1 - self.stock2
 
-        # 初始化均值和标准差
         self.spread_mean = bt.indicators.SimpleMovingAverage(self.spread, period=self.params.window)
         self.spread_std = bt.indicators.StandardDeviation(self.spread, period=self.params.window)
 
     def next(self):
-        # 计算当前价差的 Z 分数
         if self.spread_std[0] == 0:
             z_score = 0
         else:
