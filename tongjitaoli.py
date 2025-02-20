@@ -114,13 +114,13 @@ if __name__ == '__main__':
 
         # 运行回测
         print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
-        cerebro.run()
-        print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
-        print(item)
 
         cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe_ratio')
         results = cerebro.run()
         strat = results[0]
+        print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
+        print(item)
+
         print(strat.analyzers.sharpe_ratio.get_analysis())
         print('-----------------------------------------------------------')
         # 绘制结果
