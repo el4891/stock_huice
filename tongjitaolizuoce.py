@@ -19,6 +19,15 @@ class PairTradingStrategy(bt.Strategy):
         self.spread_mean = bt.indicators.SimpleMovingAverage(self.spread, period=self.params.window)
         self.spread_std = bt.indicators.StandardDeviation(self.spread, period=self.params.window)
 
+        highlow_period = 32
+        self.highest = []
+        self.highest.append(bt.ind.Highest(self.stock1.high, period=highlow_period))
+        self.highest.append(bt.ind.Highest(self.stock2.high, period=highlow_period))
+
+        self.lowest = []
+        self.lowest.append(bt.ind.Lowest(self.stock1.low, period=highlow_period))
+        self.lowest.append(bt.ind.Lowest(self.stock2.low, period=highlow_period))
+
     def next(self):
         if self.spread_std[0] == 0:
             z_score = 0
@@ -68,13 +77,28 @@ class PairTradingStrategy(bt.Strategy):
                 self.close(data=self.stock1)
                 self.close(data=self.stock2)
 
-            # for data in self.datas:
-            #     position = self.getposition(data)
-            #
-            #     if position.size > 0 and (data.close[0] < position.price * 0.99 or data.close[0] > position.price * 1.02):
-            #         self.sell(data=data)
-            #     elif position.size < 0 and (data.close[0] > position.price * 1.01 or data.close[0] < position.price * 0.98):
-            #         self.buy(data=data)
+            else:
+                for i in range(2):
+                    data = self.datas[i]
+                    position = self.getposition(data)
+
+                    if position.size > 0 and (data.close[0] < self.lowest[i][-1]):
+                        self.buy(data=data)
+                        print(f'buy {i + 1}')
+                        print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
+                    elif position.size < 0 and (data.close[0] > self.highest[i][-1]):
+                        self.sell(data=data)
+                        print(f'sell {i + 1}')
+                        print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
+
+                    if position.size > 0 and (data.close[0] > self.highest[i][-1]):
+                        self.sell(data=data)
+                        print(f'sell {i + 1}')
+                        print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
+                    elif position.size < 0 and (data.close[0] < self.lowest[i][-1]):
+                        self.buy(data=data)
+                        print(f'buy {i + 1}')
+                        print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
 
 
 # 回测设置
