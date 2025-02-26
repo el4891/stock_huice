@@ -5,8 +5,8 @@ from data_process import data_processing
 
 class PairTradingStrategy(bt.Strategy):
     params = (
-        ('window', 900),
-        ('entry_z', 1.8),
+        ('window', 800),
+        ('entry_z', 1.6),
         ('exit_z', 0.5),
     )
 
@@ -104,7 +104,7 @@ class PairTradingStrategy(bt.Strategy):
 # 回测设置
 if __name__ == '__main__':
 
-    futures_list = [['RB2505', 'HC2505'], ['C2505', 'CS2505'], ['FG2505', 'SA2505']]
+    futures_list = [['RB2505', 'HC2505'], ['C2505', 'CS2505'], ['FG2505', 'SA2505'], ['M2505', 'RM2505']]
 
     for item in futures_list:
         print('-----------------------------------------------------------')
