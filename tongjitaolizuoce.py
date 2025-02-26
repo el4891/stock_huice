@@ -5,7 +5,7 @@ from data_process import data_processing
 
 class PairTradingStrategy(bt.Strategy):
     params = (
-        ('window', 512),
+        ('window', 900),
         ('entry_z', 1.8),
         ('exit_z', 0.5),
     )
@@ -145,4 +145,4 @@ if __name__ == '__main__':
         print(strat.analyzers.sharpe_ratio.get_analysis())
         print('-----------------------------------------------------------')
         # 绘制结果
-        cerebro.plot()
+        #cerebro.plot()
