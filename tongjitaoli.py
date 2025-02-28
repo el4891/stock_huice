@@ -1,7 +1,7 @@
 import backtrader as bt
 
 from data_process import data_processing
-
+import configparser
 
 class PairTradingStrategy(bt.Strategy):
     params = (
@@ -11,6 +11,12 @@ class PairTradingStrategy(bt.Strategy):
     )
 
     def __init__(self):
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        self.params.window = int(config['tongjitaoli']['window'])
+        self.params.entry_z = float(config['tongjitaoli']['entry'])
+        self.params.exit_z = float(config['tongjitaoli']['exit'])
+
         self.stock1 = self.datas[0]
         self.stock2 = self.datas[1]
 
