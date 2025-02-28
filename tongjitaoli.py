@@ -25,6 +25,9 @@ class PairTradingStrategy(bt.Strategy):
         self.spread_mean = bt.indicators.SimpleMovingAverage(self.spread, period=self.params.window)
         self.spread_std = bt.indicators.StandardDeviation(self.spread, period=self.params.window)
 
+        self.orders_buy = []
+        self.orders_sell = []
+
     def next(self):
         if self.spread_std[0] == 0:
             z_score = 0
@@ -81,6 +84,11 @@ class PairTradingStrategy(bt.Strategy):
             #         self.sell(data=data)
             #     elif position.size < 0 and (data.close[0] > position.price * 1.01 or data.close[0] < position.price * 0.98):
             #         self.buy(data=data)
+
+    def notify_order(self, order):
+        if order.status is order.Completed:
+            #print(order)
+            pass
 
 
 # 回测设置
