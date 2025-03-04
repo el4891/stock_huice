@@ -2,6 +2,7 @@ import backtrader as bt
 
 from data_process import data_processing
 import configparser
+import ast
 
 class PairTradingStrategy(bt.Strategy):
     params = (
@@ -93,8 +94,11 @@ class PairTradingStrategy(bt.Strategy):
 
 # 回测设置
 if __name__ == '__main__':
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    futures_list = ast.literal_eval(config['tongjitaoli']['futures_list'])
 
-    futures_list = [['RB2505', 'HC2505'], ['C2505', 'CS2505'], ['FG2505', 'SA2505'], ['M2505', 'RM2505']]
+    #futures_list = [['RB2505', 'HC2505'], ['C2505', 'CS2505'], ['FG2505', 'SA2505'], ['M2505', 'RM2505']]
 
     for item in futures_list:
         print('-----------------------------------------------------------')
