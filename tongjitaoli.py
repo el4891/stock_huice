@@ -66,8 +66,10 @@ class PairTradingStrategy(bt.Strategy):
         else:
             if z_score > self.params.entry_z:
                 print(f'you can sell 1 buy 2')
+                print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
             elif z_score < -self.params.entry_z:
                 print(f'you can sell 2 buy 1')
+                print(f'1 price {self.stock1.close[0]}  2 price {self.stock2.close[0]}')
 
             if abs(z_score) < self.params.exit_z:
                 print(f"当前时间: {current_time}")
