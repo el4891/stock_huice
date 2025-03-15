@@ -2,8 +2,8 @@ import os
 
 import akshare as ak
 import pandas as pd
-import pandas_ta as ta
-from matplotlib import pyplot as plt
+#import pandas_ta as ta
+#from matplotlib import pyplot as plt
 
 
 def get_bt_data(df):
@@ -47,7 +47,7 @@ def sina_daily_data(symbol):
 
     return df
 
-
+'''
 class DataProcessing:
     def __init__(self, filename):
         self.filename = filename
@@ -101,3 +101,4 @@ class DataProcessing:
         self.draw_plot()
 
         return self.dataFrame
+'''
