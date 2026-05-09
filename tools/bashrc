@@ -1,0 +1,11 @@
+
+function lnmpush() {
+	if [ $# -gt 1 ]; then
+		echo "Usage: lnmpush [branch-name]"
+		return 1
+	fi
+	local branch=${1:-$(git rev-parse --abbrev-ref HEAD)}
+	echo "Pushing to $branch"
+	git push origin $branch
+}
+
