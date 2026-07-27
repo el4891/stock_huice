@@ -4,9 +4,20 @@ import akshare as ak
 import pandas as pd
 import numpy as np
 
+from pathlib import Path
+import argparse
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='config file')
+    parser.add_argument('-f', '--file', required=False, help='config file')
+    args = parser.parse_args()
+
+    path = 'config.ini'
+    if args.file != None:
+        path = Path(args.file).resolve()
+
     try:
-        with open('config.ini', 'r', encoding='utf-8') as file:
+        with open(path, 'r', encoding='utf-8') as file:
             for line in file:
                 symbol_tmp = line.rstrip('\n')
                 df = None
