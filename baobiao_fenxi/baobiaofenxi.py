@@ -2,6 +2,7 @@ import os
 
 import akshare as ak
 import pandas as pd
+import numpy as np
 
 if __name__ == '__main__':
     try:
@@ -13,6 +14,9 @@ if __name__ == '__main__':
                     df = ak.stock_financial_analysis_indicator(symbol=symbol_tmp, start_year="2022")
                     df['日期'] = df['日期'].astype(str)
                     df = df[df['日期'].str.contains('12-31', na=False)]
+                    numeric_cols = df.select_dtypes(include=[np.number]).columns
+                    averages = df[numeric_cols].mean()
+                    df = pd.concat([df, averages.to_frame().T.rename(index={0:'average'})], ignore_index=True)
                     df.to_csv(f'{symbol_tmp}.csv', index=False, encoding='utf-8-sig')
                 else:
                     df = pd.read_csv(f'{symbol_tmp}.csv')
