@@ -22,9 +22,14 @@ if __name__ == '__main__':
                 symbol_tmp = line.rstrip('\n')
                 df = None
                 if not os.path.exists(f'{symbol_tmp}.csv'):
-                    df = ak.stock_financial_analysis_indicator(symbol=symbol_tmp, start_year="2022")
-                    df['日期'] = df['日期'].astype(str)
-                    df = df[df['日期'].str.contains('12-31', na=False)]
+                    stock_code_len = len(symbol_tmp)
+                    if stock_code_len == 6:
+                        df = ak.stock_financial_analysis_indicator(symbol=symbol_tmp, start_year="2022")
+                        df['日期'] = df['日期'].astype(str)
+                        df = df[df['日期'].str.contains('12-31', na=False)]
+                    elif stock_code_len < 6:
+                        df = ak.stock_financial_hk_analysis_indicator_em(symbol=symbol_tmp, indicator="年度")
+
                     numeric_cols = df.select_dtypes(include=[np.number]).columns
                     averages = df[numeric_cols].mean()
                     df = pd.concat([df, averages.to_frame().T.rename(index={0:'average'})], ignore_index=True)
