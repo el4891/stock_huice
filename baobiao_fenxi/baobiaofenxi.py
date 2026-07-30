@@ -36,7 +36,11 @@ if __name__ == '__main__':
                     df.to_csv(f'{symbol_tmp}.csv', index=False, encoding='utf-8-sig')
                 else:
                     df = pd.read_csv(f'{symbol_tmp}.csv')
+                print('----------------------------------------------------------------------------------------')
                 print(df)
+                if '资产负债率(%)' in df.columns:
+                    print(df['资产负债率(%)'].iloc[-1])
+                print(symbol_tmp)
     except FileNotFoundError:
         print('not flond file')
     except Exception as e:
