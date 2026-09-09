@@ -83,9 +83,10 @@ if __name__ == '__main__':
                         df = ak.stock_financial_analysis_indicator(symbol=symbol_tmp, start_year="2022")
                         df['日期'] = df['日期'].astype(str)
                         df = df[df['日期'].str.contains('12-31', na=False)]
+                        df = df.tail(4)
                     elif stock_code_len < 6:
                         df = ak.stock_financial_hk_analysis_indicator_em(symbol=symbol_tmp, indicator="年度")
-                        df = df.head(5)
+                        df = df.head(4)
 
                     numeric_cols = df.select_dtypes(include=[np.number]).columns
                     averages = df[numeric_cols].mean()
