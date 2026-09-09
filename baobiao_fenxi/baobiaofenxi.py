@@ -35,6 +35,11 @@ def shujudayin(df):
     elif 'ROE_AVG' in df.columns:
         print(f'净资产收益率(%) {df['ROE_AVG'].iloc[-1]}')
 
+    if '销售毛利率(%)' in df.columns:
+        print(f'销售毛利率(%) {df['销售毛利率(%)'].iloc[-1]}')
+    elif 'ROE_AVG' in df.columns:
+        print(f'销售毛利率(%) {df['GROSS_PROFIT_RATIO'].iloc[-1]}')
+
     if '应收账款周转率(次)' in df.columns:
         print(f'应收账款周转率(次) {df['应收账款周转率(次)'].iloc[-1]}')
     # elif 'DILUTED_EPS' in df.columns:
@@ -42,6 +47,7 @@ def shujudayin(df):
 
     if '存货周转率(次)' in df.columns:
         print(f'存货周转率(次) {df['存货周转率(次)'].iloc[-1]}')
+        print(f'存货周转评分{(df['净资产收益率(%)'].iloc[-1] * 20 / 100 + df['存货周转率(次)'].iloc[-1]) / 3}')
     # elif 'DILUTED_EPS' in df.columns:
     #     print(f'存货周转率(次) {df['DILUTED_EPS'].iloc[-1]}')
 
