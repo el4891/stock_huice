@@ -9,7 +9,7 @@ import pandas as pd
 
 def shujudayin(df):
     print('----------------------------------------------------------------------------------------')
-    print(df.iloc[:, 1:9])
+    print(df.iloc[:, 4:11])
     if '资产负债率(%)' in df.columns:
         print(f'资产负债率 {df['资产负债率(%)'].iloc[-1]}')
     elif 'DEBT_ASSET_RATIO' in df.columns:
