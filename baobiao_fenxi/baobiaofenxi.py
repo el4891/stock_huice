@@ -1,5 +1,4 @@
 import argparse
-import os
 from pathlib import Path
 
 import akshare as ak
@@ -78,12 +77,17 @@ if __name__ == '__main__':
     if args.file != None:
         path = Path(args.file).resolve()
 
+    # csv 统一保存到脚本所在目录下的 output 目录
+    output_dir = Path(__file__).resolve().parent / 'output'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     try:
         with open(path, 'r', encoding='utf-8') as file:
             for line in file:
                 symbol_tmp = line.rstrip('\n')
                 df = None
-                if not os.path.exists(f'{symbol_tmp}.csv'):
+                csv_path = output_dir / f'{symbol_tmp}.csv'
+                if not csv_path.exists():
                     stock_code_len = len(symbol_tmp)
                     if stock_code_len == 6:
                         df = ak.stock_financial_analysis_indicator(symbol=symbol_tmp, start_year="2022")
@@ -97,9 +101,9 @@ if __name__ == '__main__':
                     numeric_cols = df.select_dtypes(include=[np.number]).columns
                     averages = df[numeric_cols].mean()
                     df = pd.concat([df, averages.to_frame().T.rename(index={0: 'average'})], ignore_index=True)
-                    df.to_csv(f'{symbol_tmp}.csv', index=False, encoding='utf-8-sig')
+                    df.to_csv(csv_path, index=False, encoding='utf-8-sig')
                 else:
-                    df = pd.read_csv(f'{symbol_tmp}.csv')
+                    df = pd.read_csv(csv_path)
                 shujudayin(df)
     except FileNotFoundError:
         print('not flond file')
