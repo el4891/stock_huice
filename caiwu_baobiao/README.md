@@ -46,4 +46,9 @@ output/{代码}_{报表名}_{report|yearly}.csv
 
 例：`output/600519_资产负债表_report.csv`，编码 `utf-8-sig`，可直接用 Excel 打开。
 
+表头为中文，映射表在 `field_names.py`：
+- 东方财富返回的英文字段（`SECUCODE`、`SECURITY_CODE` 等）在保存前统一替换为中文；
+- 以 `_YOY` 结尾的同比字段自动命名为「<中文名>同比增长率」；
+- 极少数生僻字段（如 `FIN_FUND`、`ACF_END_INCOME`）暂未确认中文含义，保留英文原名，可在 `field_names.py` 中补充。
+
 单个代码或报表失败不会中断整批，末尾会汇总失败清单。

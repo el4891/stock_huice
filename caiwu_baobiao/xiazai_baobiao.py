@@ -17,6 +17,8 @@ from pathlib import Path
 import akshare as ak
 import pandas as pd
 
+from field_names import rename_columns  # pyright: ignore[reportImplicitRelativeImport]
+
 SHEETS = ('资产负债表', '利润表', '现金流量表')
 
 # 报表名 -> (按报告期接口名, 按年度接口名)
@@ -105,6 +107,8 @@ def main():
                     print(f'empty: {code} {sheet} {freq}')
                     failed.append(f'{code} {sheet} {freq}')
                     continue
+                # 保存前把东方财富的英文字段名换成中文表头
+                df = rename_columns(df, sheet)
                 df.to_csv(target, index=False, encoding='utf-8-sig')
                 ok += 1
                 print(f'saved: {target.name} ({len(df)} 行)')
