@@ -164,3 +164,7 @@ out
 data_out
 .idea
 data_sina
+
+# 编辑器 / 工具配置文件目录
+.codebuddy/
+.vscode/
