@@ -1,0 +1,2 @@
+# 下载生成的 CSV 报表数据不入库（目录用 output/.gitkeep 保留）
+*.csv
