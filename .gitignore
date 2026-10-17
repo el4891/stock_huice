@@ -168,3 +168,7 @@ data_sina
 # 编辑器 / 工具配置文件目录
 .codebuddy/
 .vscode/
+
+# 本地配置文件（仅这两个子目录）
+baobiao_fenxi/config.ini
+caiwu_baobiao/config.ini
