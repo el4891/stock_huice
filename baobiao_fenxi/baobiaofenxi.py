@@ -71,14 +71,17 @@ def shujudayin(df):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='config file')
     parser.add_argument('-f', '--file', required=False, help='config file')
+    parser.add_argument('-o', '--output', required=False, help='output dir')
     args = parser.parse_args()
 
     path = 'config.ini'
     if args.file != None:
         path = Path(args.file).resolve()
 
-    # csv 统一保存到脚本所在目录下的 output 目录
+    # csv 统一保存到脚本所在目录下的 output 目录，可通过 -o 覆盖
     output_dir = Path(__file__).resolve().parent / 'output'
+    if args.output != None:
+        output_dir = Path(args.output).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
