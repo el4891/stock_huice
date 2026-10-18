@@ -7,12 +7,21 @@
 
 import os
 import re
+import sys
 
 import akshare as ak
 import pandas as pd
 
-# 缓存目录与脚本同级的 data_cache
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data_cache')
+
+def _base_dir():
+    """程序目录：源码运行时为脚本目录，打包成 exe 后为 exe 所在目录（避免写入临时解包目录）。"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+# 缓存目录与脚本/exe 同级的 data_cache
+CACHE_DIR = os.path.join(_base_dir(), 'data_cache')
 
 # akshare 返回的中文列名 -> 回测统一使用的列名
 COLUMN_MAP = {

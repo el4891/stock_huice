@@ -73,19 +73,42 @@ except ImportError:
 
     QT_BINDING = 'PySide6'
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 源码运行时程序目录即脚本目录；打包成 exe 后只读资源在临时解包目录（_MEIPASS），
+# 而配置需要写入，因此统一放到 exe 所在目录，避免写入临时目录导致配置丢失
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+    RES_DIR = Path(getattr(sys, '_MEIPASS', BASE_DIR))
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+    RES_DIR = BASE_DIR
+
+sys.path.insert(0, str(BASE_DIR))
 
 from backtest import describe_batch, describe_conditions, fraction_text, run_backtest
 from data_fetch import fetch_daily
 
-ASSETS_DIR = Path(__file__).resolve().parent / 'assets'
-# 界面配置本地保存位置（与脚本同目录，ini 格式便于手工查看/删除）
-SETTINGS_PATH = Path(__file__).resolve().parent / 'settings.ini'
+ASSETS_DIR = RES_DIR / 'assets'
+# 界面配置本地保存位置（与脚本/exe 同目录，ini 格式便于手工查看/删除）
+SETTINGS_PATH = BASE_DIR / 'settings.ini'
 
 
 def _asset_uri(name):
     """生成 QSS 可用的图片路径（统一使用正斜杠绝对路径）。"""
     return (ASSETS_DIR / name).as_posix()
+
+
+def _ensure_default_settings():
+    """首次以 exe 运行时，把内置的默认配置复制到 exe 目录，便于用户查看与修改。"""
+    if SETTINGS_PATH.exists():
+        return
+    default_path = RES_DIR / 'settings.ini'
+    if not default_path.exists() or default_path == SETTINGS_PATH:
+        return
+    try:
+        SETTINGS_PATH.write_bytes(default_path.read_bytes())
+    except OSError:
+        # 无写入权限时忽略，界面仍会使用代码内的默认值
+        pass
 
 
 def _to_int(value, default):
@@ -1031,9 +1054,14 @@ class MainWindow(QMainWindow):
             position = result['open_position']
             self._append_log('未平仓：%d 股，均价 %.3f，最新价 %.3f，浮动盈亏 %+.2f 元' % (
                 position['size'], position['buy_price'], position['last_price'], position['pnl']))
-        if result['skipped_count']:
-            self._append_log('注意：有 %d 次买入信号因金额不足一手被跳过，可提高「每次买入金额」'
-                             % result['skipped_count'])
+        if result['failed_buy_count']:
+            # 把「条件成立但没买成」的情况列出，避免只看到买入次数少却不知道原因
+            self._append_log('买入失败 %d 次（条件成立但未能成交）：' % result['failed_buy_count'])
+            for item in result['failed_buys'][:10]:
+                self._append_log('  %s @ %.3f 未买入：%s' % (
+                    item['time'].strftime('%Y-%m-%d'), item['price'], item['reason']))
+            if result['failed_buy_count'] > 10:
+                self._append_log('  ...其余 %d 条未列出' % (result['failed_buy_count'] - 10))
         if not result['buy_count']:
             self._append_log('本次回测没有触发任何买入信号，可调整均线周期或条件组合')
         self.statusBar().showMessage('回测完成')
@@ -1196,6 +1224,7 @@ def apply_dark_theme(app):
 
 
 def main():
+    _ensure_default_settings()
     app = QApplication(sys.argv)
     apply_dark_theme(app)
     font = QFont('Microsoft YaHei UI', 9)

@@ -21,6 +21,14 @@
 
 import backtrader as bt
 
+# 委托未成交的状态名 -> 中文原因（用于买入失败明细）
+FAIL_REASONS = {
+    'Margin': '可用资金不足',
+    'Rejected': '委托被拒绝',
+    'Canceled': '委托已取消',
+    'Expired': '委托已过期',
+}
+
 
 class ThreeMaStrategy(bt.Strategy):
     params = dict(
@@ -46,6 +54,9 @@ class ThreeMaStrategy(bt.Strategy):
         self.open_position = None  # 回测结束时的未平仓持仓
         self.messages = []         # 运行日志（界面展示）
         self.skipped_count = 0     # 因买入金额不足一手而跳过的信号次数
+        self.failed_buys = []      # 买入失败明细（时间、信号价、原因），界面展示用
+        self.failed_buy_count = 0  # 买入失败总次数（明细最多保留 500 条）
+        self.pending_price = None  # 挂单对应的信号价（成交失败时记录用）
 
         # 当前持仓的加权成本：amount 为买入金额合计（不含佣金），comm 为对应买入佣金
         self.position_size = 0
@@ -90,6 +101,19 @@ class ThreeMaStrategy(bt.Strategy):
         """按固定金额计算可买整手数量。"""
         lot = max(int(self.p.lot_size), 1)
         return int(self.p.cash_per_trade / price / lot) * lot
+
+    def _record_buy_failure(self, price, reason, size=0):
+        """记录一次买入失败：时间、信号价、原计划数量与原因（明细最多保留 500 条）。"""
+        self.failed_buy_count += 1
+        if len(self.failed_buys) >= 500:
+            return
+        self.failed_buys.append(dict(
+            time=self.data.datetime.datetime(0),
+            price=float(price),
+            size=int(size),
+            reason=reason,
+            position=self.position_size,
+        ))
 
     def _avg_price(self):
         """当前持仓的加权平均买入价（不含佣金）。"""
@@ -182,15 +206,18 @@ class ThreeMaStrategy(bt.Strategy):
         size = self._calc_size(price)
         if size <= 0:
             self.skipped_count += 1
+            self._record_buy_failure(price, '买入金额不足 1 手（可提高「每次买入金额」）')
             self._log('%s 买入金额不足以买入 1 手（收盘价 %.2f，每手 %d 股）'
                       % (self.data.datetime.date(0), price, int(self.p.lot_size)))
             return
+        self.pending_price = price
         self.pending_order = self.buy(size=size)
 
     def _submit_sell(self):
         size = self._sell_size()
         if size <= 0:
             return
+        self.pending_price = self.data.close[0]
         self.pending_order = self.sell(size=size)
 
     def next(self):
@@ -230,6 +257,7 @@ class ThreeMaStrategy(bt.Strategy):
 
         if order.status == order.Completed:
             self.pending_order = None
+            self.pending_price = None
             price = order.executed.price
             size = abs(int(order.executed.size))
             amount = price * size
@@ -288,10 +316,24 @@ class ThreeMaStrategy(bt.Strategy):
             return
 
         # 订单被拒绝、取消等情况：释放挂单状态并记录原因
+        status_name = order.getstatusname()
         self.pending_order = None
-        self._log('%s 委托未成交：%s' % (self.data.datetime.date(0), order.getstatusname()))
+        if order.isbuy():
+            # 买入失败的委托计入明细，让结果中能看到「条件成立却没买入」的原因
+            self._record_buy_failure(self.pending_price or self.data.close[0],
+                                     FAIL_REASONS.get(status_name, status_name),
+                                     abs(int(getattr(order.created, 'size', 0) or 0)))
+        self.pending_price = None
+        self._log('%s 委托未成交：%s' % (self.data.datetime.date(0), status_name))
 
     def stop(self):
+        # 最后一根 K 线产生的委托没有次日开盘可成交，计入买入失败明细
+        if self.pending_order is not None and self.pending_order.isbuy():
+            self._record_buy_failure(self.pending_price or self.data.close[0],
+                                     '回测结束时委托未成交')
+        self.pending_order = None
+        self.pending_price = None
+
         # 记录回测结束时的基准状态，供界面展示
         self.anchor_state = dict(
             buy_anchor=self.buy_anchor,

@@ -183,6 +183,8 @@ def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
         trades=trades,
         open_position=open_position,
         skipped_count=strat.skipped_count,
+        failed_buys=list(strat.failed_buys),
+        failed_buy_count=strat.failed_buy_count,
         messages=list(strat.messages),
     )
 
@@ -294,9 +296,13 @@ def main(argv=None):
         result['commission_total']))
     print('买入 %d 次，卖出 %d 次，已平仓 %d 笔，胜率 %.2f%%' % (
         result['buy_count'], result['sell_count'], result['closed_count'], result['win_rate']))
-    if result['skipped_count']:
-        print('提示：有 %d 次买入信号因金额不足一手被跳过，可提高「每次买入金额」'
-              % result['skipped_count'])
+    if result['failed_buy_count']:
+        print('买入失败 %d 次（条件成立但未能成交）：' % result['failed_buy_count'])
+        for item in result['failed_buys'][:20]:
+            print('  %s @ %.3f 未买入：%s' % (
+                item['time'].strftime('%Y-%m-%d'), item['price'], item['reason']))
+        if result['failed_buy_count'] > 20:
+            print('  ...其余 %d 条未列出' % (result['failed_buy_count'] - 20))
 
     for item in result['trades']:
         print('买入 %s @ %.3f x %d -> 卖出 %s @ %.3f，盈亏 %.2f（%.2f%%）' % (
