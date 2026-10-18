@@ -84,7 +84,8 @@ else:
 
 sys.path.insert(0, str(BASE_DIR))
 
-from backtest import describe_batch, describe_conditions, fraction_text, run_backtest
+from backtest import (MIN_INITIAL_CASH, describe_batch, describe_conditions,
+                      fraction_text, run_backtest)
 from data_fetch import fetch_daily
 
 ASSETS_DIR = RES_DIR / 'assets'
@@ -371,6 +372,7 @@ class BacktestWorker(QThread):
                 buy_conditions=p['buy_conditions'],
                 sell_conditions=p['sell_conditions'],
                 cash_per_trade=p['cash_per_trade'],
+                initial_cash_multiple=p['initial_cash_multiple'],
                 lot_size=p['lot_size'],
                 commission=p['commission'],
                 symbol=code,
@@ -552,6 +554,15 @@ class MainWindow(QMainWindow):
         self.spin_cash.setValue(100000.0)
         self.spin_cash.setGroupSeparatorShown(True)
         self.spin_cash.setFixedWidth(150)
+        self.spin_cash_multiple = QDoubleSpinBox()
+        self.spin_cash_multiple.setRange(0.1, 1000.0)
+        self.spin_cash_multiple.setDecimals(1)
+        self.spin_cash_multiple.setSingleStep(1.0)
+        self.spin_cash_multiple.setValue(20.0)
+        self.spin_cash_multiple.setSuffix(' 倍')
+        self.spin_cash_multiple.setFixedWidth(100)
+        self.spin_cash_multiple.setToolTip(
+            '初始资金 = 每次买入金额 × 该倍数，最低 %s 元' % format(MIN_INITIAL_CASH, ',.0f'))
         self.spin_lot = QSpinBox()
         self.spin_lot.setRange(1, 100000)
         self.spin_lot.setValue(100)
@@ -565,6 +576,9 @@ class MainWindow(QMainWindow):
 
         row1.addWidget(QLabel('每次买入金额'))
         row1.addWidget(self.spin_cash)
+        row1.addSpacing(12)
+        row1.addWidget(QLabel('初始资金倍数'))
+        row1.addWidget(self.spin_cash_multiple)
         row1.addSpacing(12)
         row1.addWidget(QLabel('每手股数'))
         row1.addWidget(self.spin_lot)
@@ -602,7 +616,9 @@ class MainWindow(QMainWindow):
         layout.addLayout(row2)
 
         hint = QLabel('均线基于收盘价计算；信号在当日收盘产生，委托按次日开盘价成交。'
-                      '每次买入金额需覆盖「1 手 = 每手股数 × 股价」，否则该信号会被跳过。')
+                      '每次买入金额需覆盖「1 手 = 每手股数 × 股价」，否则该信号会被跳过。'
+                      '初始资金 = 每次买入金额 × 初始资金倍数，最低 %s 元。'
+                      % format(MIN_INITIAL_CASH, ',.0f'))
         hint.setObjectName('hint')
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -815,6 +831,7 @@ class MainWindow(QMainWindow):
         settings.setValue('target/use_cache', self.check_cache.isChecked())
 
         settings.setValue('params/cash', self.spin_cash.value())
+        settings.setValue('params/cash_multiple', self.spin_cash_multiple.value())
         settings.setValue('params/lot_size', self.spin_lot.value())
         settings.setValue('params/commission', self.spin_commission.value())
         settings.setValue('params/ma1', self.spin_ma1.value())
@@ -861,6 +878,8 @@ class MainWindow(QMainWindow):
                                             self.check_cache.isChecked()))
 
         self.spin_cash.setValue(_to_float(settings.value('params/cash'), self.spin_cash.value()))
+        self.spin_cash_multiple.setValue(_to_float(settings.value('params/cash_multiple'),
+                                                   self.spin_cash_multiple.value()))
         self.spin_lot.setValue(_to_int(settings.value('params/lot_size'), self.spin_lot.value()))
         self.spin_commission.setValue(_to_float(settings.value('params/commission'),
                                                 self.spin_commission.value()))
@@ -971,6 +990,7 @@ class MainWindow(QMainWindow):
             buy_conditions=tuple(buy_conditions),
             sell_conditions=tuple(sell_conditions),
             cash_per_trade=self.spin_cash.value(),
+            initial_cash_multiple=self.spin_cash_multiple.value(),
             lot_size=self.spin_lot.value(),
             commission=self.spin_commission.value(),
             step_buy_pct=self.spin_buy_step.value(),
@@ -999,10 +1019,14 @@ class MainWindow(QMainWindow):
         self.btn_run.setEnabled(False)
         self.statusBar().showMessage('回测运行中...')
 
-        self._append_log('回测参数：%s，区间 %s ~ %s，均线 %s(%s)，每次买入 %.2f 元' % (
-            params['symbol'], params['start'], params['end'],
-            '/'.join(str(p) for p in params['ma_periods']), params['ma_type'],
-            params['cash_per_trade']))
+        initial_cash = max(params['cash_per_trade'] * params['initial_cash_multiple'],
+                           MIN_INITIAL_CASH)
+        self._append_log('回测参数：%s，区间 %s ~ %s，均线 %s(%s)，每次买入 %.2f 元，'
+                         '初始资金 %.2f 元（%s 倍）' % (
+                             params['symbol'], params['start'], params['end'],
+                             '/'.join(str(p) for p in params['ma_periods']), params['ma_type'],
+                             params['cash_per_trade'], initial_cash,
+                             params['initial_cash_multiple']))
         buy_batch, sell_batch = describe_batch(params['step_buy_pct'], params['step_sell_pct'],
                                                params['sell_fraction'], params['sell_mode'],
                                                params['buy_mode'])

@@ -25,6 +25,9 @@ BUY_MODES = ('fall', 'rise')
 # 分批卖出的触发方式：rise=较上次卖价上涨，high=较持仓期间最高价回落
 SELL_MODES = ('rise', 'high')
 
+# 初始资金下限：倍数设得过小时兜底，避免连续加仓时资金不足被拒单
+MIN_INITIAL_CASH = 100000.0
+
 
 def parse_conditions(text):
     """解析 '0>1,1<2' 形式的条件串，返回 ((0, '>', 1), (1, '<', 2))。"""
@@ -57,12 +60,14 @@ def _validate_conditions(conditions, name, ma_count=3):
 
 
 def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
-                 cash_per_trade=10000.0, lot_size=100, commission=0.0005,
+                 cash_per_trade=10000.0, initial_cash_multiple=20.0,
+                 lot_size=100, commission=0.0005,
                  symbol='', market='A', step_buy_pct=0.0, step_sell_pct=0.0,
                  sell_fraction=1.0, sell_mode='rise', buy_mode='fall'):
     """执行回测并返回结果字典。
 
     df 需包含 datetime/open/high/low/close/volume 六列。
+    initial_cash_multiple 为初始资金相对「每次买入金额」的倍数（须大于 0）；
     step_buy_pct / step_sell_pct 为分批买卖的价格间隔（百分比），0 表示不分批；
     buy_mode 为买入触发方式：fall=较上次买价下跌，rise=较上次买价上涨；
     sell_mode 为卖出触发方式：rise=较上次卖价上涨，high=较持仓高点回落；
@@ -81,6 +86,9 @@ def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
     cash_per_trade = float(cash_per_trade)
     if cash_per_trade <= 0:
         raise ValueError('每次买入金额必须大于 0')
+    initial_cash_multiple = float(initial_cash_multiple)
+    if initial_cash_multiple <= 0:
+        raise ValueError('初始资金倍数必须大于 0')
     lot_size = max(int(lot_size), 1)
     commission = max(float(commission), 0.0)
 
@@ -110,8 +118,9 @@ def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
 
     feed = bt.feeds.PandasData(dataname=frame[['open', 'high', 'low', 'close', 'volume']])
 
-    # 持仓期间买入条件仍成立时会持续加仓，预留较多现金，避免连续加仓时资金不足被拒单
-    initial_cash = max(cash_per_trade * 20, 100000.0)
+    # 持仓期间买入条件仍成立时会持续加仓，初始资金按「每次买入金额 × 倍数」预留，
+    # 倍数由资金设置界面指定；不足下限时按 MIN_INITIAL_CASH 兜底
+    initial_cash = max(cash_per_trade * initial_cash_multiple, MIN_INITIAL_CASH)
 
     cerebro = bt.Cerebro(stdstats=False)
     cerebro.adddata(feed, name=symbol or 'data')
@@ -159,6 +168,7 @@ def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
         buy_conditions=buy_conditions,
         sell_conditions=sell_conditions,
         cash_per_trade=cash_per_trade,
+        initial_cash_multiple=initial_cash_multiple,
         lot_size=lot_size,
         commission=commission,
         step_buy_pct=step_buy_pct,
