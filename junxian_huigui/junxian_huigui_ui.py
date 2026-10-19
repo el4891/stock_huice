@@ -3,8 +3,9 @@
 功能：
     输入 A 股 / 港股代码，选择三条均线的周期与类型，自由组合「均线A 比较符 均线B」
     形式的买入、卖出条件，设置每次买入金额后回测，展示盈亏、买卖次数与买卖时点。
-    支持分批买卖：条件成立后每下跌指定百分比时按固定金额加仓；卖出可按「每上涨」
-    或「从高点回落」指定百分比触发，每次卖出持仓的 1/4、1/3、1/2 或全部。
+    支持分批买卖，成交时机可选：条件成立立即成交（旧方式），或条件成立时只更新基准价格、
+    价格相对基准变动达到指定百分比才成交；卖出可按「每上涨」/「从高点回落」减仓
+    1/4、1/3、1/2 或全部。
 
 依赖：PyQt5（未安装时自动回退到 PySide6）、backtrader、akshare。
 """
@@ -335,6 +336,8 @@ SELL_FRACTIONS = [('1/4（四分之一）', 0.25), ('1/3（三分之一）', 1.0
 BUY_MODES = [('每下跌', 'fall'), ('每上涨', 'rise')]
 # 分批卖出触发方式：显示文本 -> 参数值（rise=较上次卖价上涨，high=较持仓高点回落）
 SELL_MODES = [('每上涨', 'rise'), ('从高点回落', 'high')]
+# 成交时机：step=条件成立只更新基准、等涨跌幅达标成交；immediate=条件成立立即成交（旧方式）
+SIGNAL_MODES = [('等涨跌幅达标成交', 'step'), ('条件成立立即成交', 'immediate')]
 # 明细表按实际成交逐笔展示（每次买入、每次卖出各一行）
 TABLE_COLUMNS = ['序号', '成交时间', '方向', '成交价', '数量', '成交金额',
                  '手续费', '盈亏', '盈亏%', '成交后持仓']
@@ -382,6 +385,7 @@ class BacktestWorker(QThread):
                 sell_fraction=p['sell_fraction'],
                 sell_mode=p['sell_mode'],
                 buy_mode=p['buy_mode'],
+                signal_mode=p['signal_mode'],
             )
             self.succeeded.emit(result)
         except Exception as exc:
@@ -670,6 +674,17 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
 
+        row0 = QHBoxLayout()
+        row0.setSpacing(8)
+        self.combo_signal_mode = QComboBox()
+        self.combo_signal_mode.addItems([text for text, _ in SIGNAL_MODES])
+        self.combo_signal_mode.setFixedWidth(180)
+        row0.addWidget(QLabel('成交时机：条件成立后'))
+        row0.addWidget(self.combo_signal_mode)
+        row0.addWidget(QLabel('（立即成交为旧方式；等涨跌幅则先只更新基准）'))
+        row0.addStretch(1)
+        layout.addLayout(row0)
+
         row1 = QHBoxLayout()
         row1.setSpacing(8)
         self.combo_buy_mode = QComboBox()
@@ -683,10 +698,10 @@ class MainWindow(QMainWindow):
         self.spin_buy_step.setSuffix(' %')
         self.spin_buy_step.setFixedWidth(110)
 
-        row1.addWidget(QLabel('买入：持仓期间'))
+        row1.addWidget(QLabel('买入：条件成立后'))
         row1.addWidget(self.combo_buy_mode)
         row1.addWidget(self.spin_buy_step)
-        row1.addWidget(QLabel('加仓一次，每次金额固定为「每次买入金额」'))
+        row1.addWidget(QLabel('买入一次，每次金额固定为「每次买入金额」'))
         row1.addStretch(1)
         layout.addLayout(row1)
         self.spin_buy_step.valueChanged.connect(self._sync_buy_mode)
@@ -717,11 +732,11 @@ class MainWindow(QMainWindow):
         row2.addStretch(1)
         layout.addLayout(row2)
 
-        hint = QLabel('买入间隔以最近一次买入价为基准，可选「每下跌」加仓或「每上涨」追涨加仓，'
-                      '填 0 表示不限制价格间隔；买卖条件一旦失效即清空对应基准，'
-                      '条件重新成立时直接成交（不等涨跌幅）。'
-                      '卖出「每上涨」以最近一次卖出价为基准，「从高点回落」以持仓期间最高价为基准，'
-                      '卖出间隔填 0 表示信号成立时一次性清仓。')
+        hint = QLabel('成交时机可选「等涨跌幅达标成交」或「条件成立立即成交」：前者在条件成立时'
+                      '只更新基准价格，价格相对基准变动达到设定幅度才成交；后者条件成立即成交，'
+                      '之后按间隔继续买卖。买入基准为条件成立时收盘价（成交后为成交价），'
+                      '卖出「每上涨」以收盘价、「从高点回落」以最高价为基准；'
+                      '填 0 表示条件成立即成交；条件失效后清空基准，重新成立时按新价格重建。')
         hint.setObjectName('hint')
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -841,6 +856,7 @@ class MainWindow(QMainWindow):
 
         settings.setValue('batch/buy_step', self.spin_buy_step.value())
         settings.setValue('batch/sell_step', self.spin_sell_step.value())
+        settings.setValue('batch/signal_mode_index', self.combo_signal_mode.currentIndex())
         settings.setValue('batch/buy_mode_index', self.combo_buy_mode.currentIndex())
         settings.setValue('batch/sell_fraction_index', self.combo_sell_fraction.currentIndex())
         settings.setValue('batch/sell_mode_index', self.combo_sell_mode.currentIndex())
@@ -892,6 +908,8 @@ class MainWindow(QMainWindow):
                                               self.spin_buy_step.value()))
         self.spin_sell_step.setValue(_to_float(settings.value('batch/sell_step'),
                                                self.spin_sell_step.value()))
+        self._set_combo_index(self.combo_signal_mode,
+                              settings.value('batch/signal_mode_index'))
         self._set_combo_index(self.combo_buy_mode, settings.value('batch/buy_mode_index'))
         self._set_combo_index(self.combo_sell_fraction,
                               settings.value('batch/sell_fraction_index'))
@@ -953,6 +971,11 @@ class MainWindow(QMainWindow):
         index = max(self.combo_buy_mode.currentIndex(), 0)
         return BUY_MODES[index][1]
 
+    def _signal_mode(self):
+        """取当前选择的成交时机（step=等涨跌幅，immediate=条件成立立即成交）。"""
+        index = max(self.combo_signal_mode.currentIndex(), 0)
+        return SIGNAL_MODES[index][1]
+
     def _collect_params(self):
         symbol = self.edit_code.text().strip()
         if not symbol:
@@ -998,6 +1021,7 @@ class MainWindow(QMainWindow):
             sell_fraction=self._sell_fraction(),
             sell_mode=self._sell_mode(),
             buy_mode=self._buy_mode(),
+            signal_mode=self._signal_mode(),
         )
 
     def _start_backtest(self):
@@ -1029,8 +1053,10 @@ class MainWindow(QMainWindow):
                              params['initial_cash_multiple']))
         buy_batch, sell_batch = describe_batch(params['step_buy_pct'], params['step_sell_pct'],
                                                params['sell_fraction'], params['sell_mode'],
-                                               params['buy_mode'])
-        self._append_log('分批设置：买入 %s；卖出 %s' % (buy_batch, sell_batch))
+                                               params['buy_mode'], params['signal_mode'])
+        self._append_log('分批设置：成交时机 %s；买入 %s；卖出 %s' % (
+            '条件成立立即成交' if params['signal_mode'] == 'immediate' else '等涨跌幅达标成交',
+            buy_batch, sell_batch))
 
         self.worker = BacktestWorker(params)
         self.worker.progress.connect(self._append_log)
@@ -1054,15 +1080,16 @@ class MainWindow(QMainWindow):
 
         buy_batch, sell_batch = describe_batch(result['step_buy_pct'], result['step_sell_pct'],
                                                result['sell_fraction'], result['sell_mode'],
-                                               result['buy_mode'])
+                                               result['buy_mode'], result['signal_mode'])
         self.label_summary.setText(
-            '%s（%s）%s ~ %s，%d 根 K 线｜买入条件：%s｜卖出条件：%s｜分批：买入 %s，卖出 %s'
-            '｜已平仓 %d 笔，手续费合计 %.2f 元'
+            '%s（%s）%s ~ %s，%d 根 K 线｜买入条件：%s｜卖出条件：%s｜成交时机：%s'
+            '｜分批：买入 %s，卖出 %s｜已平仓 %d 笔，手续费合计 %.2f 元'
             % (result['symbol'], result['market_name'],
                result['start'].strftime('%Y-%m-%d'), result['end'].strftime('%Y-%m-%d'),
                result['bars'],
                describe_conditions(result['buy_conditions'], result['ma_periods']),
                describe_conditions(result['sell_conditions'], result['ma_periods']),
+               '条件成立立即成交' if result['signal_mode'] == 'immediate' else '等涨跌幅达标成交',
                buy_batch, sell_batch,
                result['closed_count'], result['commission_total']))
 
@@ -1106,25 +1133,42 @@ class MainWindow(QMainWindow):
         step_sell = result['step_sell_pct']
         fraction = fraction_text(result['sell_fraction'])
 
+        immediate = str(result.get('signal_mode', 'step')) == 'immediate'
+        trend = '上涨' if result['buy_mode'] == 'rise' else '下跌'
         if step_buy <= 0:
             buy_rule = '买入不限价格间隔，条件成立即买入'
-        elif result['buy_mode'] == 'rise':
-            buy_rule = '买入以上一笔买入成交价为基准，再上涨 %.2f%% 才加仓' % step_buy
+        elif immediate:
+            buy_rule = ('买入条件成立即成交，之后以上一笔买入成交价为基准，再%s %.2f%% 才加仓'
+                        % (trend, step_buy))
         else:
-            buy_rule = '买入以上一笔买入成交价为基准，再下跌 %.2f%% 才加仓' % step_buy
-        buy_rule += '；买入条件失效后基准清空，重新成立时立即买入'
+            buy_rule = '买入条件成立时以当时收盘价为基准，再%s %.2f%% 才买入' % (trend, step_buy)
+        if immediate:
+            buy_rule += '；买入条件失效后基准清空，重新成立时立即买入'
+        else:
+            buy_rule += '；成交后基准更新为该笔成交价；条件失效后基准清空，重新成立时按新价格重建'
 
         if step_sell <= 0:
             sell_rule = '卖出信号成立时一次性清仓，不使用价格基准'
+        elif immediate:
+            if result['sell_mode'] == 'high':
+                sell_rule = ('卖出以持仓期间最高价为基准，回落 %.2f%% 时卖出持仓的 %s；'
+                             '卖出一笔后基准重置为该笔卖出成交价；'
+                             '条件失效后基准清空，下次成立时立即卖出'
+                             % (step_sell, fraction))
+            else:
+                sell_rule = ('卖出条件成立即先卖出一次，之后以上一笔卖出成交价为基准，'
+                             '再上涨 %.2f%% 时卖出持仓的 %s；'
+                             '条件失效后基准清空，下次成立时立即卖出'
+                             % (step_sell, fraction))
         elif result['sell_mode'] == 'high':
-            sell_rule = ('卖出以持仓期间最高价为基准，回落 %.2f%% 时卖出持仓的 %s；'
+            sell_rule = ('卖出条件成立时以当时最高价为基准，回落 %.2f%% 时卖出持仓的 %s；'
                          '卖出一笔后基准重置为该笔卖出成交价；'
-                         '卖出条件失效后基准清空，下次成立时立即卖出'
+                         '条件失效后基准清空，重新成立时按新价格重建'
                          % (step_sell, fraction))
         else:
-            sell_rule = ('卖出以上一笔卖出成交价为基准，再上涨 %.2f%% 时卖出持仓的 %s；'
+            sell_rule = ('卖出条件成立时以当时收盘价为基准，再上涨 %.2f%% 时卖出持仓的 %s；'
                          '卖出一笔后基准更新为该笔成交价；'
-                         '卖出条件失效后基准清空，下次成立时立即卖出'
+                         '条件失效后基准清空，重新成立时按新价格重建'
                          % (step_sell, fraction))
 
         parts = ['当前买入基准%s' % self._anchor_value(anchors['buy_anchor'],

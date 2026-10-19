@@ -25,6 +25,9 @@ BUY_MODES = ('fall', 'rise')
 # 分批卖出的触发方式：rise=较上次卖价上涨，high=较持仓期间最高价回落
 SELL_MODES = ('rise', 'high')
 
+# 成交时机：immediate=条件成立即成交（旧方式），step=等涨跌幅达标再成交
+SIGNAL_MODES = ('step', 'immediate')
+
 # 初始资金下限：倍数设得过小时兜底，避免连续加仓时资金不足被拒单
 MIN_INITIAL_CASH = 100000.0
 
@@ -63,14 +66,17 @@ def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
                  cash_per_trade=10000.0, initial_cash_multiple=20.0,
                  lot_size=100, commission=0.0005,
                  symbol='', market='A', step_buy_pct=0.0, step_sell_pct=0.0,
-                 sell_fraction=1.0, sell_mode='rise', buy_mode='fall'):
+                 sell_fraction=1.0, sell_mode='rise', buy_mode='fall',
+                 signal_mode='step'):
     """执行回测并返回结果字典。
 
     df 需包含 datetime/open/high/low/close/volume 六列。
     initial_cash_multiple 为初始资金相对「每次买入金额」的倍数（须大于 0）；
-    step_buy_pct / step_sell_pct 为分批买卖的价格间隔（百分比），0 表示不分批；
-    buy_mode 为买入触发方式：fall=较上次买价下跌，rise=较上次买价上涨；
-    sell_mode 为卖出触发方式：rise=较上次卖价上涨，high=较持仓高点回落；
+    signal_mode 为成交时机：immediate=条件成立即成交，step=条件成立只更新基准、
+    价格相对基准变动达到间隔后才成交；
+    step_buy_pct / step_sell_pct 为买卖的价格间隔（百分比），0 表示条件成立即成交；
+    buy_mode 为买入触发方式：fall=较基准下跌，rise=较基准上涨；
+    sell_mode 为卖出触发方式：rise=较基准上涨，high=较持仓高点回落；
     sell_fraction 为每次卖出占持仓的比例（0 < 比例 <= 1）。
     """
     if df is None or df.empty:
@@ -104,6 +110,10 @@ def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
     sell_mode = str(sell_mode or 'rise').lower()
     if sell_mode not in SELL_MODES:
         raise ValueError('卖出触发方式只能是 rise（每上涨）或 high（从高点回落）：%s' % sell_mode)
+    signal_mode = str(signal_mode or 'step').lower()
+    if signal_mode not in SIGNAL_MODES:
+        raise ValueError('成交时机只能是 immediate（条件成立即成交）或 step（等涨跌幅）：%s'
+                         % signal_mode)
 
     frame = df.copy()
     frame['datetime'] = pd.to_datetime(frame['datetime'])
@@ -138,6 +148,7 @@ def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
         sell_fraction=sell_fraction,
         sell_mode=sell_mode,
         buy_mode=buy_mode,
+        signal_mode=signal_mode,
     )
     cerebro.broker.setcash(initial_cash)
     cerebro.broker.setcommission(commission=commission)
@@ -176,6 +187,7 @@ def run_backtest(df, ma_periods, buy_conditions, sell_conditions, ma_type='SMA',
         sell_fraction=sell_fraction,
         sell_mode=sell_mode,
         buy_mode=buy_mode,
+        signal_mode=signal_mode,
         initial_cash=initial_cash,
         final_value=cerebro.broker.getvalue(),
         realized_pnl=realized,
@@ -217,22 +229,33 @@ def fraction_text(fraction):
 
 
 def describe_batch(step_buy_pct, step_sell_pct, sell_fraction, sell_mode='rise',
-                   buy_mode='fall'):
-    """把分批买卖设置转成可读文本，返回 (买入说明, 卖出说明)。"""
+                   buy_mode='fall', signal_mode='step'):
+    """把成交时机与分批买卖设置转成可读文本，返回 (买入说明, 卖出说明)。"""
+    immediate = str(signal_mode) == 'immediate'
     if step_buy_pct <= 0:
         buy_text = '条件成立即买入（不限制间隔）'
-    elif str(buy_mode) == 'rise':
-        buy_text = '每上涨 %.2f%% 加仓一次' % step_buy_pct
+    elif immediate:
+        trend = '上涨' if str(buy_mode) == 'rise' else '下跌'
+        buy_text = ('条件成立即买入，之后每%s %.2f%% 加仓一次'
+                    % (trend, step_buy_pct))
     else:
-        buy_text = '每下跌 %.2f%% 加仓一次' % step_buy_pct
+        trend = '上涨' if str(buy_mode) == 'rise' else '下跌'
+        buy_text = ('条件成立后以当时价格为基准，再%s %.2f%% 买入一次'
+                    % (trend, step_buy_pct))
 
     if step_sell_pct <= 0:
         sell_text = '信号成立时全部卖出'
     else:
         if str(sell_mode) == 'high':
-            trigger = '从高点回落 %.2f%% 时' % step_sell_pct
+            if immediate:
+                trigger = '从高点回落 %.2f%% 时' % step_sell_pct
+            else:
+                trigger = '条件成立后从当时高点回落 %.2f%% 时' % step_sell_pct
         else:
-            trigger = '每上涨 %.2f%% 时' % step_sell_pct
+            if immediate:
+                trigger = '条件成立即先卖一次，之后每上涨 %.2f%% 时' % step_sell_pct
+            else:
+                trigger = '条件成立后以当时价格为基准再上涨 %.2f%% 时' % step_sell_pct
         if float(sell_fraction) >= 1.0:
             sell_text = '%s全部卖出' % trigger
         else:
@@ -255,15 +278,18 @@ def main(argv=None):
     parser.add_argument('--lot', type=int, default=100, help='每手股数')
     parser.add_argument('--commission', type=float, default=0.0005, help='佣金率（双边）')
     parser.add_argument('--buy-step', type=float, default=0.0,
-                        help='分批买入间隔：较上次买价变动百分之几时加仓，0 表示条件成立即买入')
+                        help='买入间隔：条件成立后价格较基准变动百分之几才买入，0 表示条件成立即买入')
     parser.add_argument('--buy-mode', default='fall', choices=list(BUY_MODES),
-                        help='分批买入触发方式：fall=较上次买价下跌，rise=较上次买价上涨')
+                        help='买入触发方式：fall=较基准下跌，rise=较基准上涨')
     parser.add_argument('--sell-step', type=float, default=0.0,
-                        help='分批卖出间隔：较上次卖价上涨百分之几时减仓，0 表示一次性清仓')
+                        help='卖出间隔：条件成立后价格较基准变动百分之几才减仓，0 表示条件成立即清仓')
     parser.add_argument('--sell-fraction', type=float, default=1.0,
                         help='每次卖出占持仓的比例，如 0.25 / 0.3333 / 0.5 / 1')
     parser.add_argument('--sell-mode', default='rise', choices=list(SELL_MODES),
                         help='分批卖出触发方式：rise=较上次卖价上涨，high=较持仓高点回落')
+    parser.add_argument('--signal-mode', default='step', choices=list(SIGNAL_MODES),
+                        help='成交时机：step=条件成立后等涨跌幅达标成交，'
+                             'immediate=条件成立立即成交')
     parser.add_argument('--no-cache', action='store_true', help='不使用本地缓存')
     args = parser.parse_args(argv)
 
@@ -286,6 +312,7 @@ def main(argv=None):
             sell_fraction=args.sell_fraction,
             sell_mode=args.sell_mode,
             buy_mode=args.buy_mode,
+            signal_mode=args.signal_mode,
         )
     except Exception as exc:
         print('回测失败：%s' % exc)
@@ -299,7 +326,7 @@ def main(argv=None):
         describe_conditions(result['sell_conditions'], result['ma_periods'])))
     buy_batch, sell_batch = describe_batch(result['step_buy_pct'], result['step_sell_pct'],
                                            result['sell_fraction'], result['sell_mode'],
-                                           result['buy_mode'])
+                                           result['buy_mode'], result['signal_mode'])
     print('分批设置：买入 %s；卖出 %s' % (buy_batch, sell_batch))
     print('总盈亏：%.2f 元（已实现 %.2f，浮动 %.2f），手续费合计 %.2f' % (
         result['total_pnl'], result['realized_pnl'], result['unrealized_pnl'],

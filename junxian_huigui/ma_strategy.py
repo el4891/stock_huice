@@ -4,17 +4,20 @@
     买入条件、卖出条件均由若干「均线A 比较符 均线B」条件组成，条件之间取「与」关系。
     例如 ((0, '>', 1), (1, '<', 2)) 表示 MA1 > MA2 且 MA2 < MA3。
 
-交易规则：
-    满足买入条件 -> 按「每次买入金额」买入整手，空仓或持仓均适用；
-    持仓且满足卖出条件 -> 按「每次卖出比例」减仓（默认全部卖出）；
-    分批买入：持仓期间买入条件仍成立时，按 buy_mode 判断是否加仓——fall 为价格较上一次
-              买入成交价下跌 step_buy_pct%，rise 为价格较上一次买入成交价上涨
-              step_buy_pct%；step_buy_pct 为 0 表示不限制价格间隔；
-              买入条件由成立转为不成立时清空买入基准，条件重新成立时立即买入；
-    分批卖出：持仓期间卖出条件仍成立，按 sell_mode 判断是否减仓——rise 为价格较上一次
-              卖出成交价上涨 step_sell_pct%，high 为价格较持仓期间最高价回落
-              step_sell_pct%；step_sell_pct 为 0 时信号成立即一次性清仓；
-              卖出条件由成立转为不成立时清空卖出基准，下一次条件成立即卖出；
+交易规则（signal_mode 控制成交时机）：
+    immediate（条件成立立即成交）：
+        买入条件由不成立转为成立时按「每次买入金额」立即买入整手；持仓期间继续按
+        buy_mode / step_buy_pct 判断加仓；卖出条件由不成立转为成立时按「每次卖出比例」
+        立即减仓（默认全部卖出），之后的减仓按 sell_mode / step_sell_pct 判断；
+        条件失效时清空对应基准，重新成立时再次立即成交。
+    step（等涨跌幅达标成交）：
+        买入条件成立时只更新买入基准（当时收盘价），价格相对基准变动达到 step_buy_pct%
+        才买入——fall 为较基准下跌，rise 为较基准上涨；
+        卖出条件成立时只更新卖出基准（rise 为当时收盘价，high 为当时最高价），价格相对
+        基准变动达到 step_sell_pct% 才减仓——rise 为较基准上涨，high 为较持仓期间最高价
+        回落；step_sell_pct 为 0 时条件成立即一次性清仓；
+        条件失效时清空对应基准，重新成立时以新的价格建立基准。
+    两种模式下 step 为 0 都表示不限制价格间隔；成交后基准均更新为成交价；
     持仓成本按加权平均价结转，部分卖出只结转对应比例的成本；
     回测结束时未平仓的持仓不计入已实现盈亏，单独记录为浮动盈亏。
 """
@@ -39,11 +42,12 @@ class ThreeMaStrategy(bt.Strategy):
         cash_per_trade=10000.0,   # 每次买入金额（元）
         lot_size=100,             # 每手股数（A 股 100，港股按实际每手）
         commission=0.0005,        # 佣金率（双边，含税费）
-        step_buy_pct=0.0,         # 分批买入的间隔（百分比），0 表示条件成立即买入
-        step_sell_pct=0.0,        # 分批卖出的间隔（百分比），0 表示一次性清仓
+        step_buy_pct=0.0,         # 分批买入间隔（百分比），0 表示条件成立即买入
+        step_sell_pct=0.0,        # 分批卖出间隔（百分比），0 表示条件成立即清仓
         sell_fraction=1.0,        # 每次卖出占持仓的比例（1/4、1/3、1/2、1）
-        sell_mode='rise',         # 卖出触发方式：rise=最近卖价上涨，high=持仓高点回落
-        buy_mode='fall',          # 买入触发方式：fall=较上次买价下跌，rise=较上次买价上涨
+        sell_mode='rise',         # 卖出触发方式：rise=较基准上涨，high=较高点回落
+        buy_mode='fall',          # 买入触发方式：fall=较基准下跌，rise=较基准上涨
+        signal_mode='step',       # 成交时机：step=等涨跌幅达标，immediate=条件成立即成交
     )
 
     def __init__(self):
@@ -63,13 +67,13 @@ class ThreeMaStrategy(bt.Strategy):
         self.position_amount = 0.0
         self.position_comm = 0.0
         self.position_time = None  # 本轮持仓首次买入时间
-        self.buy_anchor = None     # 上一次买入成交价（分批买入的下跌基准）
-        self.sell_anchor = None    # 上一次卖出成交价（分批卖出的上涨基准）
+        self.buy_anchor = None     # 买入基准：条件成立时的收盘价或上一次买入成交价
+        self.sell_anchor = None    # 卖出基准：条件成立时的收盘价或上一次卖出成交价
         self.peak_price = None     # 持仓期间最高价（从高点回落卖出的基准）
         self.buy_signal_active = False   # 上一根 K 线买入条件是否成立
-        self.buy_reset = False           # 买入条件失效后基准已清空，下次成立即买入
+        self.buy_reset = False           # 买入条件失效后基准已清空（界面展示用）
         self.sell_signal_active = False  # 上一根 K 线卖出条件是否成立
-        self.sell_reset = False          # 卖出条件失效后基准已清空，下次成立即卖出
+        self.sell_reset = False          # 卖出条件失效后基准已清空（界面展示用）
         # 回测结束时的基准状态（stop 中写入，界面展示用）
         self.anchor_state = dict(buy_anchor=None, sell_anchor=None, peak_price=None,
                                  buy_reset=False, sell_reset=False)
@@ -133,32 +137,56 @@ class ThreeMaStrategy(bt.Strategy):
         self.buy_reset = False
         self.sell_reset = False
 
+    def _immediate(self):
+        """是否采用「条件成立立即成交」的旧方式。"""
+        return str(self.p.signal_mode) == 'immediate'
+
     def _can_add_buy(self, price):
-        """持仓期间加仓：基准已清空或间隔为 0 时，买入条件成立即可继续买入。"""
+        """判断本次是否允许买入：基准为空或间隔为 0 时直接放行。"""
         if self.buy_reset or self.buy_anchor is None:
             return True
         step = float(self.p.step_buy_pct)
         if step <= 0:
             return True
         if str(self.p.buy_mode) == 'rise':
-            # 追涨加仓：较上一次买入价上涨 step_buy_pct% 时再加仓
+            # 追涨：较基准上涨 step_buy_pct% 时买入
             return price >= self.buy_anchor * (1 + step / 100.0)
         return price <= self.buy_anchor * (1 - step / 100.0)
 
     def _track_signals(self):
-        """跟踪买卖条件：条件由成立转为不成立时清空对应基准，下次成立即成交。"""
+        """跟踪买卖条件，返回 (买入条件是否成立, 卖出条件是否成立)。
+
+        step 模式：条件刚成立时只更新基准价格，实际买卖由 next 中的涨跌幅判断；
+        immediate 模式：条件成立时立即成交，这里只负责条件失效时清空基准。
+        条件由成立转为不成立时清空对应基准，等待重新成立。
+        """
+        immediate = self._immediate()
+
         buy_matched = bool(self.p.buy_conditions) and self._match(self.p.buy_conditions)
-        if self.buy_signal_active and not buy_matched:
+        if buy_matched and not self.buy_signal_active:
+            if not immediate:
+                # 等涨跌幅模式：只更新基准，买入动作等价格变动达到设定幅度
+                self.buy_anchor = self.data.close[0]
+                self.buy_reset = False
+        elif self.buy_signal_active and not buy_matched:
             self.buy_anchor = None
             self.buy_reset = True
         self.buy_signal_active = buy_matched
 
         sell_matched = bool(self.p.sell_conditions) and self._match(self.p.sell_conditions)
-        if self.sell_signal_active and not sell_matched:
+        if sell_matched and not self.sell_signal_active:
+            if not immediate:
+                # 等涨跌幅模式：只更新基准，减仓动作等价格变动达到设定幅度
+                self.sell_anchor = self.data.close[0]
+                self.peak_price = self.data.high[0]
+                self.sell_reset = False
+        elif self.sell_signal_active and not sell_matched:
             self.sell_anchor = None
             self.peak_price = None
             self.sell_reset = True
         self.sell_signal_active = sell_matched
+
+        return buy_matched, sell_matched
 
     def _update_peak(self):
         """记录持仓期间的最高价，作为「从高点回落」卖出的基准。"""
@@ -172,22 +200,26 @@ class ThreeMaStrategy(bt.Strategy):
     def _can_sell(self, price):
         """分批卖出：按触发方式判断本次是否允许减仓。
 
-        rise：较上一次卖出价上涨 step_sell_pct% 时减仓；
+        rise：较卖出基准（条件成立时的收盘价或上一次卖出价）上涨 step_sell_pct% 时减仓；
         high：较持仓期间最高价回落 step_sell_pct% 时减仓。
-        卖出条件失效后基准会被清空，条件再次成立时直接卖出；
-        间隔为 0 表示不分批，信号成立即一次性清仓。
+        间隔为 0 表示不分批；immediate 模式下条件重新成立后的首次卖出不等幅度。
         """
         step = float(self.p.step_sell_pct)
-        if step <= 0 or self.sell_reset:
+        if step <= 0:
+            return True
+
+        immediate = self._immediate()
+        if immediate and self.sell_reset:
+            # 条件重新成立：立即成交方式下首次卖出不等间隔
             return True
 
         if str(self.p.sell_mode) == 'high':
             if self.peak_price is None:
-                return True
+                return immediate
             return price <= self.peak_price * (1 - step / 100.0)
 
         if self.sell_anchor is None:
-            return True   # 本轮首次卖出，无需等待上涨
+            return immediate
         return price >= self.sell_anchor * (1 + step / 100.0)
 
     def _sell_size(self):
@@ -221,8 +253,8 @@ class ThreeMaStrategy(bt.Strategy):
         self.pending_order = self.sell(size=size)
 
     def next(self):
-        # 先跟踪买卖条件状态，条件失效时清空对应基准
-        self._track_signals()
+        # 先跟踪买卖条件状态：成立时只更新基准，失效时清空对应基准
+        buy_matched, sell_matched = self._track_signals()
 
         # 持仓期间持续跟踪最高价，即使当日有挂单也需要记录
         if self.position_size > 0:
@@ -235,21 +267,31 @@ class ThreeMaStrategy(bt.Strategy):
         if price <= 0:
             return
 
-        if self.position_size <= 0:
-            if not self.p.buy_conditions or not self._match(self.p.buy_conditions):
-                return
-            self._submit_buy(price)
-            return
+        immediate = self._immediate()
 
         # 持仓中：卖出信号优先，避免同一天既加仓又减仓
-        if self.p.sell_conditions and self._match(self.p.sell_conditions):
+        if self.position_size > 0 and sell_matched:
+            if not immediate and self.sell_anchor is None:
+                # 等涨跌幅模式：卖出条件在开仓前就已成立时只重建基准
+                self.sell_anchor = price
+                self.peak_price = self.data.high[0]
+                self.sell_reset = False
+                if float(self.p.step_sell_pct) > 0:
+                    return
             if self._can_sell(price):
                 self._submit_sell()
             return
 
-        if self.p.buy_conditions and self._match(self.p.buy_conditions):
-            if self._can_add_buy(price):
-                self._submit_buy(price)
+        if not buy_matched:
+            return
+
+        if not immediate and self.buy_anchor is None:
+            # 等涨跌幅模式：条件早已成立（如刚清仓）时只重建基准
+            self.buy_anchor = price
+            if float(self.p.step_buy_pct) > 0:
+                return
+        if self._can_add_buy(price):
+            self._submit_buy(price)
 
     def notify_order(self, order):
         if order.status in (order.Submitted, order.Accepted):
