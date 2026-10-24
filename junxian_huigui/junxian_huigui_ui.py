@@ -598,7 +598,7 @@ class MainWindow(QMainWindow):
         self.spin_ma2 = QSpinBox()
         self.spin_ma3 = QSpinBox()
         for spin, value in ((self.spin_ma1, 5), (self.spin_ma2, 20), (self.spin_ma3, 60)):
-            spin.setRange(1, 500)
+            spin.setRange(1, 1280)
             spin.setValue(value)
             spin.setFixedWidth(84)
         self.combo_ma_type = QComboBox()
