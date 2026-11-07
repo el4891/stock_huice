@@ -5,6 +5,8 @@
 依赖：PyQt5（未安装时自动回退到 PySide6）。
 """
 
+import configparser
+import re
 import shutil
 import sys
 import tempfile
@@ -13,11 +15,15 @@ from pathlib import Path
 # Qt 绑定兼容导入：优先 PyQt5，其次 PySide6
 try:
     from PyQt5.QtCore import QProcess, QProcessEnvironment, Qt, QUrl
-    from PyQt5.QtGui import QDesktopServices, QFont, QTextCursor
+    from PyQt5.QtGui import QColor, QDesktopServices, QFont, QTextCharFormat, QTextCursor
     from PyQt5.QtWidgets import (
         QApplication,
         QButtonGroup,
+        QCheckBox,
+        QComboBox,
+        QDoubleSpinBox,
         QFileDialog,
+        QGridLayout,
         QGroupBox,
         QHBoxLayout,
         QLabel,
@@ -36,11 +42,15 @@ try:
     QT_BINDING = 'PyQt5'
 except ImportError:
     from PySide6.QtCore import QProcess, QProcessEnvironment, Qt, QUrl
-    from PySide6.QtGui import QDesktopServices, QFont, QTextCursor
+    from PySide6.QtGui import QColor, QDesktopServices, QFont, QTextCharFormat, QTextCursor
     from PySide6.QtWidgets import (
         QApplication,
         QButtonGroup,
+        QCheckBox,
+        QComboBox,
+        QDoubleSpinBox,
         QFileDialog,
+        QGridLayout,
         QGroupBox,
         QHBoxLayout,
         QLabel,
@@ -62,6 +72,25 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT_PATH = SCRIPT_DIR / 'baobiaofenxi.py'
 DEFAULT_CONFIG = SCRIPT_DIR / 'config.ini'
 DEFAULT_OUTPUT = SCRIPT_DIR / 'output'
+# 界面参数持久化文件，与脚本同目录
+SETTINGS_PATH = SCRIPT_DIR / 'setting.ini'
+
+# 可设置阈值的关键指标（名称须与 baobiaofenxi.py 的日志输出前缀一致）
+RULE_ITEMS = (
+    '资产负债率',
+    '三项费用比重',
+    '净资产收益率(%)',
+    '应收账款周转率(次)',
+    '存货周转率(次)',
+    '存货周转评分',
+    '速动比率',
+    '流动比率',
+    '现金比率(%)',
+)
+
+# 日志着色：命中阈值显示红色，未命中显示绿色
+COLOR_HIT = QColor('#dc2626')
+COLOR_MISS = QColor('#16a34a')
 
 STYLE_SHEET = """
 QWidget { font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; font-size: 13px; }
@@ -81,6 +110,35 @@ QGroupBox {
 }
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }
 QRadioButton { background: transparent; font-weight: normal; color: #1f2937; }
+/* 默认指示器在白色分组框上对比度太低，改为深色描边框，选中时填充蓝色 */
+QCheckBox {
+    background: transparent;
+    font-weight: normal;
+    color: #1f2937;
+    spacing: 6px;
+}
+QCheckBox::indicator {
+    width: 15px;
+    height: 15px;
+    border: 1px solid #6b7280;
+    border-radius: 3px;
+    background: #ffffff;
+}
+QCheckBox::indicator:hover { border-color: #2563eb; }
+QCheckBox::indicator:checked { background: #2563eb; border-color: #1d4ed8; }
+QCheckBox::indicator:disabled { border-color: #d1d5db; background: #f9fafb; }
+QCheckBox::indicator:checked:disabled { background: #93c5fd; border-color: #93c5fd; }
+QCheckBox:checked { font-weight: 600; }
+QComboBox, QDoubleSpinBox {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-weight: normal;
+    color: #111827;
+}
+QComboBox:disabled, QDoubleSpinBox:disabled { background: #f9fafb; color: #9ca3af; }
+QComboBox QAbstractItemView { background: #ffffff; color: #111827; selection-background-color: #bfdbfe; }
 QLineEdit, QPlainTextEdit {
     background: #ffffff;
     border: 1px solid #d1d5db;
@@ -138,8 +196,14 @@ class MainWindow(QMainWindow):
 
         self._process = None
         self._tmp_dir = None
+        # 阈值规则：[ (正则, 比较方式, 阈值) ]，在每次开始运行时生成
+        self._rules = []
+        # 子进程输出可能被拆成半行，先缓冲到换行再着色
+        self._line_buf = ''
+        self._rule_rows = []
 
         self._build_ui()
+        self._load_settings()  # 恢复上次界面参数
         self._sync_source_enabled()
         self.statusBar().showMessage('就绪')
 
@@ -167,6 +231,7 @@ class MainWindow(QMainWindow):
         upper_layout.setSpacing(12)
         upper_layout.addWidget(self._build_source_box())
         upper_layout.addWidget(self._build_output_box())
+        upper_layout.addWidget(self._build_rule_box())
         upper_layout.addLayout(self._build_action_row())
 
         # 参数区放入滚动区，使其可被压缩，日志区才能向上扩展
@@ -188,7 +253,7 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self._build_log_box())
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 1)
-        self.splitter.setSizes([400, 300])
+        self.splitter.setSizes([470, 260])
         root.addWidget(self.splitter, 1)
 
     def _build_source_box(self):
@@ -249,6 +314,57 @@ class MainWindow(QMainWindow):
 
         return box
 
+    def _build_rule_box(self):
+        """指标阈值设置区：勾选后启用，命中阈值红色、未命中绿色。"""
+        box = QGroupBox('指标阈值设置')
+        layout = QVBoxLayout(box)
+        layout.setSpacing(8)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(18)
+        grid.setVerticalSpacing(6)
+        self._rule_rows = []
+        for index, name in enumerate(RULE_ITEMS):
+            row, col = divmod(index, 2)
+            cell = QHBoxLayout()
+            cell.setSpacing(6)
+
+            chk = QCheckBox(name)
+            # 勾选后标签加粗，留足宽度避免“应收账款周转率(次)”被截断
+            chk.setMinimumWidth(155)
+            mode = QComboBox()
+            mode.addItems(['大于', '小于'])
+            mode.setFixedWidth(72)
+            value = QDoubleSpinBox()
+            value.setRange(-1e9, 1e9)
+            value.setDecimals(2)
+            value.setSingleStep(0.5)
+            value.setFixedWidth(96)
+            chk.toggled.connect(
+                lambda checked, m=mode, v=value: self._sync_rule_row(checked, m, v)
+            )
+            self._sync_rule_row(False, mode, value)
+
+            cell.addWidget(chk)
+            cell.addWidget(mode)
+            cell.addWidget(value)
+            cell.addStretch(1)
+            grid.addLayout(cell, row, col)
+            self._rule_rows.append((name, chk, mode, value))
+
+        layout.addLayout(grid)
+
+        hint = QLabel('勾选后生效：指标结果满足条件显示红色，否则显示绿色；未勾选的指标保持默认颜色')
+        hint.setObjectName('hint')
+        layout.addWidget(hint)
+        return box
+
+    @staticmethod
+    def _sync_rule_row(checked, mode, value):
+        """勾选状态决定比较方式与阈值输入是否可用。"""
+        mode.setEnabled(checked)
+        value.setEnabled(checked)
+
     def _build_action_row(self):
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -263,7 +379,7 @@ class MainWindow(QMainWindow):
         self.btn_stop.clicked.connect(self._stop)
 
         self.btn_clear = QPushButton('清空日志')
-        self.btn_clear.clicked.connect(lambda: self.log.clear())
+        self.btn_clear.clicked.connect(self._clear_log)
 
         self.state_label = QLabel('未运行')
         self.state_label.setObjectName('hint')
@@ -314,6 +430,63 @@ class MainWindow(QMainWindow):
         # 优先使用系统默认方式打开目录（Windows 下为资源管理器）
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(out_dir))):
             QMessageBox.warning(self, '无法打开', f'打开目录失败：{out_dir}')
+
+    # ---------------- 界面参数持久化 ----------------
+    def _load_settings(self):
+        """读取 setting.ini 恢复上次界面参数；文件缺失或内容异常时保持默认值。"""
+        parser = configparser.ConfigParser(interpolation=None)
+        try:
+            if not SETTINGS_PATH.is_file():
+                return
+            parser.read(SETTINGS_PATH, encoding='utf-8')
+        except (OSError, configparser.Error):
+            return
+
+        ui = parser['ui'] if parser.has_section('ui') else {}
+        if ui.get('source', 'file') == 'manual':
+            self.rb_manual.setChecked(True)
+        if ui.get('config'):
+            self.cfg_edit.setText(ui['config'])
+        if ui.get('output'):
+            self.out_edit.setText(ui['output'])
+        codes = [c.strip() for c in ui.get('codes', '').split(',') if c.strip()]
+        if codes:
+            self.codes_edit.setPlainText('\n'.join(codes))
+
+        rules = parser['thresholds'] if parser.has_section('thresholds') else {}
+        for name, chk, mode, value in self._rule_rows:
+            parts = [p.strip() for p in rules.get(name, '').split(',')]
+            if len(parts) != 3:
+                continue
+            try:
+                threshold = float(parts[2])
+            except ValueError:
+                continue
+            chk.setChecked(parts[0] in ('1', 'on', 'true'))
+            mode.setCurrentIndex(1 if parts[1] == 'lt' else 0)
+            value.setValue(threshold)
+
+    def _save_settings(self):
+        """把当前界面参数写入 setting.ini；写入失败只提示，不影响使用。"""
+        parser = configparser.ConfigParser(interpolation=None)
+        codes = [line.strip() for line in self.codes_edit.toPlainText().splitlines() if line.strip()]
+        parser['ui'] = {
+            'source': 'manual' if self.rb_manual.isChecked() else 'file',
+            'config': self.cfg_edit.text().strip(),
+            'output': self.out_edit.text().strip(),
+            'codes': ','.join(codes),
+        }
+        rules = {}
+        for name, chk, mode, value in self._rule_rows:
+            enabled = '1' if chk.isChecked() else '0'
+            compare = 'gt' if mode.currentIndex() == 0 else 'lt'
+            rules[name] = f'{enabled},{compare},{value.value():g}'
+        parser['thresholds'] = rules
+        try:
+            with open(SETTINGS_PATH, 'w', encoding='utf-8') as file:
+                parser.write(file)
+        except OSError as exc:
+            self.statusBar().showMessage(f'保存设置失败：{exc}')
 
     # ---------------- 运行控制 ----------------
     def _collect_codes(self):
@@ -369,7 +542,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, '参数有误', f'创建输出目录失败：{exc}')
             return
 
+        self._save_settings()  # 校验通过后再落盘，避免保存无效参数
         self.log.clear()
+        self._line_buf = ''
+        self._rules = self._collect_rules()  # 阈值为一次性快照，运行中不允许改动
         self._append(f'配置文件：{config_path}\n')
         self._append(f'输出目录：{out_dir}\n')
         self._append('-' * 100 + '\n')
@@ -399,7 +575,7 @@ class MainWindow(QMainWindow):
 
     def _read_stdout(self):
         text = bytes(self._process.readAllStandardOutput()).decode('utf-8', 'replace')
-        self._append(text)
+        self._feed_output(text)
 
     def _read_stderr(self):
         text = bytes(self._process.readAllStandardError()).decode('utf-8', 'replace')
@@ -427,19 +603,78 @@ class MainWindow(QMainWindow):
         for widget in (self.rb_file, self.rb_manual, self.cfg_edit, self.btn_cfg,
                        self.codes_edit, self.out_edit, self.btn_out):
             widget.setEnabled(not running)
+        # 阈值设置仅在空闲时可改，避免与实际生效规则不一致
+        for _name, chk, mode, value in self._rule_rows:
+            chk.setEnabled(not running)
+            self._sync_rule_row(not running and chk.isChecked(), mode, value)
         if not running:
             self._sync_source_enabled()
         self.statusBar().showMessage('正在运行...' if running else '就绪')
 
     # ---------------- 日志与清理 ----------------
-    def _append(self, text):
+    def _collect_rules(self):
+        """读取界面设置，生成 [(行首正则, 'gt'/'lt', 阈值)]。"""
+        rules = []
+        for name, chk, mode, value in self._rule_rows:
+            if not chk.isChecked():
+                continue
+            # 数值允许负数与科学计数法；名称后可能直接跟数字（如存货周转评分）
+            pattern = re.compile(
+                rf'^{re.escape(name)}\s*(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)'
+            )
+            rules.append((pattern, 'gt' if mode.currentIndex() == 0 else 'lt', value.value()))
+        return rules
+
+    def _line_color(self, line):
+        """按阈值规则返回该行颜色，未命中任何规则时返回 None（默认颜色）。"""
+        text = line.rstrip('\r')
+        for pattern, mode, threshold in self._rules:
+            match = pattern.match(text)
+            if not match:
+                continue
+            try:
+                number = float(match.group(1))
+            except ValueError:
+                return None
+            hit = number > threshold if mode == 'gt' else number < threshold
+            return COLOR_HIT if hit else COLOR_MISS
+        return None
+
+    def _insert_text(self, text, color=None):
         if not text:
             return
+        # 始终显式指定格式，否则默认文本会继承上一行的颜色
+        fmt = QTextCharFormat()
+        if color is not None:
+            fmt.setForeground(color)
         cursor = self.log.textCursor()
         cursor.movePosition(QTextCursor.End)
         self.log.setTextCursor(cursor)
-        self.log.insertPlainText(text)
+        cursor.insertText(text, fmt)
         self.log.ensureCursorVisible()
+
+    def _feed_output(self, text):
+        """按行接收子进程输出：完整行着色，半行先缓冲。"""
+        if not text:
+            return
+        self._line_buf += text
+        *lines, self._line_buf = self._line_buf.split('\n')
+        for line in lines:
+            self._insert_text(line + '\n', self._line_color(line))
+
+    def _flush_line_buf(self):
+        """把未以换行结束的残留内容按默认颜色输出。"""
+        if self._line_buf:
+            text, self._line_buf = self._line_buf, ''
+            self._insert_text(text)
+
+    def _append(self, text, color=None):
+        self._flush_line_buf()
+        self._insert_text(text, color)
+
+    def _clear_log(self):
+        self._line_buf = ''
+        self.log.clear()
 
     def _cleanup_tmp(self):
         if self._tmp_dir:
@@ -450,6 +685,7 @@ class MainWindow(QMainWindow):
         if self._process is not None:
             self._process.kill()
             self._process.waitForFinished(2000)
+        self._save_settings()  # 关闭时保存，未运行也能记住当前设置
         self._cleanup_tmp()
         super().closeEvent(event)
 
