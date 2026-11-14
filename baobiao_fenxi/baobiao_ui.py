@@ -88,6 +88,13 @@ RULE_ITEMS = (
     '现金比率(%)',
 )
 
+# 每股现金流质量校验：每股经营性现金流 低于扣非每股收益的 90% 时标红
+CASHFLOW_ITEM = '每股经营性现金流(元)'
+EPS_ITEM = '扣除非经常性损益后的每股收益(元)'
+CASHFLOW_EPS_RATIO = 0.9
+# 日志中“指标名 数值”的数值部分，缺少数值（如 nan）时匹配不到
+VALUE_RE = r'(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)'
+
 # 日志着色：命中阈值显示红色，未命中显示绿色
 COLOR_HIT = QColor('#dc2626')
 COLOR_MISS = QColor('#16a34a')
@@ -176,6 +183,17 @@ QPushButton#primary:hover { background: #1d4ed8; }
 QPushButton#primary:disabled { background: #bfdbfe; border-color: #bfdbfe; color: #f8fafc; }
 QStatusBar { background: #eef0f3; color: #4b5563; }
 """
+
+
+def metric_value(line, name):
+    """从“指标名 数值”格式的日志行中解析数值，取不到时返回 None。"""
+    match = re.match(rf'^{re.escape(name)}\s*{VALUE_RE}', line)
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
 
 
 def python_exe():
@@ -356,7 +374,13 @@ class MainWindow(QMainWindow):
 
         hint = QLabel('勾选后生效：指标结果满足条件显示红色，否则显示绿色；未勾选的指标保持默认颜色')
         hint.setObjectName('hint')
+        hint.setWordWrap(True)
         layout.addWidget(hint)
+        # 每股现金流与扣非每股收益的对比为固定规则，无需勾选
+        hint2 = QLabel('每股经营性现金流(元) 不足扣除非经常性损益后的每股收益(元) 的 90% 时，该行自动显示红色')
+        hint2.setObjectName('hint')
+        hint2.setWordWrap(True)
+        layout.addWidget(hint2)
         return box
 
     @staticmethod
@@ -619,9 +643,7 @@ class MainWindow(QMainWindow):
             if not chk.isChecked():
                 continue
             # 数值允许负数与科学计数法；名称后可能直接跟数字（如存货周转评分）
-            pattern = re.compile(
-                rf'^{re.escape(name)}\s*(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)'
-            )
+            pattern = re.compile(rf'^{re.escape(name)}\s*{VALUE_RE}')
             rules.append((pattern, 'gt' if mode.currentIndex() == 0 else 'lt', value.value()))
         return rules
 
@@ -653,6 +675,41 @@ class MainWindow(QMainWindow):
         cursor.insertText(text, fmt)
         self.log.ensureCursorVisible()
 
+    def _find_last_block(self, prefix):
+        """向上查找最近一条以 prefix 开头的日志行，遇到分隔线（上一只股票）即停止。"""
+        doc = self.log.document()
+        # 末尾是刚插入换行后的空块，从它前一块开始回溯
+        for number in range(doc.blockCount() - 2, -1, -1):
+            block = doc.findBlockByNumber(number)
+            text = block.text()
+            if text.startswith(prefix):
+                return block
+            if text and not text.strip('-'):
+                return None
+        return None
+
+    def _color_block(self, block, color):
+        """把整行日志改为指定颜色，文本内容不变。"""
+        cursor = QTextCursor(block)
+        cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+        fmt = QTextCharFormat()
+        fmt.setForeground(color)
+        cursor.mergeCharFormat(fmt)
+
+    def _check_cashflow_rule(self, line):
+        """扣非每股收益出现后回看同一只股票每股现金流：不足其 90% 标红，否则标绿。"""
+        eps = metric_value(line, EPS_ITEM)
+        if eps is None:
+            return
+        block = self._find_last_block(CASHFLOW_ITEM)
+        if block is None:
+            return
+        cash = metric_value(block.text(), CASHFLOW_ITEM)
+        if cash is None:
+            return
+        hit = cash < eps * CASHFLOW_EPS_RATIO
+        self._color_block(block, COLOR_HIT if hit else COLOR_MISS)
+
     def _feed_output(self, text):
         """按行接收子进程输出：完整行着色，半行先缓冲。"""
         if not text:
@@ -661,6 +718,7 @@ class MainWindow(QMainWindow):
         *lines, self._line_buf = self._line_buf.split('\n')
         for line in lines:
             self._insert_text(line + '\n', self._line_color(line))
+            self._check_cashflow_rule(line)
 
     def _flush_line_buf(self):
         """把未以换行结束的残留内容按默认颜色输出。"""
