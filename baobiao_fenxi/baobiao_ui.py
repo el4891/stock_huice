@@ -219,6 +219,11 @@ class MainWindow(QMainWindow):
         # 子进程输出可能被拆成半行，先缓冲到换行再着色
         self._line_buf = ''
         self._rule_rows = []
+        # 数据表格状态：分隔线后是表头；命中扣非每股收益负数则整表标红
+        self._expect_header = False
+        self._table_span = None
+        self._table_blocks = []
+        self._table_red = False
 
         self._build_ui()
         self._load_settings()  # 恢复上次界面参数
@@ -377,7 +382,7 @@ class MainWindow(QMainWindow):
         hint.setWordWrap(True)
         layout.addWidget(hint)
         # 每股现金流与扣非每股收益的对比为固定规则，无需勾选
-        hint2 = QLabel('每股经营性现金流(元) 不足扣除非经常性损益后的每股收益(元) 的 90% 时，该行自动显示红色')
+        hint2 = QLabel('每股经营性现金流(元) 不足扣除非经常性损益后的每股收益(元) 的 90% 时，该行自动显示红色；扣除非经常性损益后的每股收益(元) 为负数时同样显示红色')
         hint2.setObjectName('hint')
         hint2.setWordWrap(True)
         layout.addWidget(hint2)
@@ -567,8 +572,7 @@ class MainWindow(QMainWindow):
             return
 
         self._save_settings()  # 校验通过后再落盘，避免保存无效参数
-        self.log.clear()
-        self._line_buf = ''
+        self._clear_log()
         self._rules = self._collect_rules()  # 阈值为一次性快照，运行中不允许改动
         self._append(f'配置文件：{config_path}\n')
         self._append(f'输出目录：{out_dir}\n')
@@ -688,19 +692,29 @@ class MainWindow(QMainWindow):
                 return None
         return None
 
-    def _color_block(self, block, color):
-        """把整行日志改为指定颜色，文本内容不变。"""
+    def _color_block(self, block, color, start=0, end=None):
+        """把一行日志（或其中 [start, end) 区间）改为指定颜色，文本内容不变。"""
+        text_len = len(block.text())
+        end = text_len if end is None else min(end, text_len)
+        start = min(start, end)
+        if start >= end:
+            return
         cursor = QTextCursor(block)
-        cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+        cursor.setPosition(block.position() + start)
+        cursor.setPosition(block.position() + end, QTextCursor.KeepAnchor)
         fmt = QTextCharFormat()
         fmt.setForeground(color)
         cursor.mergeCharFormat(fmt)
 
     def _check_cashflow_rule(self, line):
-        """扣非每股收益出现后回看同一只股票每股现金流：不足其 90% 标红，否则标绿。"""
+        """扣非每股收益出现后判定：收益为负时该行标红，并回看每股现金流做 90% 对比。"""
         eps = metric_value(line, EPS_ITEM)
         if eps is None:
             return
+        # 扣非每股收益为负数说明主营业务亏损，该行直接标红
+        eps_block = self._find_last_block(EPS_ITEM)
+        if eps < 0 and eps_block is not None:
+            self._color_block(eps_block, COLOR_HIT)
         block = self._find_last_block(CASHFLOW_ITEM)
         if block is None:
             return
@@ -709,6 +723,61 @@ class MainWindow(QMainWindow):
             return
         hit = cash < eps * CASHFLOW_EPS_RATIO
         self._color_block(block, COLOR_HIT if hit else COLOR_MISS)
+
+    def _current_block(self):
+        """返回刚插入的那一行对应的文本块。"""
+        doc = self.log.document()
+        block = doc.findBlockByNumber(doc.blockCount() - 2)  # 末尾是换行后的空块
+        return block if block is not None and block.isValid() else None
+
+    def _reset_table(self):
+        """结束当前表格的着色状态。"""
+        self._table_span = None
+        self._table_blocks = []
+        self._table_red = False
+
+    def _check_table_rule(self, line):
+        """数据表格中：扣非每股收益列出现负数时，整张表标红。"""
+        text = line.rstrip('\r')
+        # 每只股票的输出都以分隔线开头，紧随其后的一行就是表头
+        if text and not text.strip('-'):
+            self._reset_table()
+            self._expect_header = True
+            return
+        if self._expect_header:
+            self._expect_header = False
+            start = text.find(EPS_ITEM)
+            if start >= 0:
+                # 该列以表头文字最宽，数值在同样宽度的区间内右对齐
+                self._table_span = (start, start + len(EPS_ITEM))
+                block = self._current_block()
+                if block is not None:
+                    self._table_blocks.append(block)
+            return
+        if self._table_span is None:
+            return
+        head = text[:3]
+        if not (text[:1].isdigit() or head.startswith(('average', '...'))):
+            self._reset_table()  # 表格已结束
+            return
+        block = self._current_block()
+        if block is None:
+            return
+        if self._table_red:
+            self._color_block(block, COLOR_HIT)  # 已判定要标红，后续行跟着标红
+            return
+        self._table_blocks.append(block)
+        start, end = self._table_span
+        try:
+            number = float(text[start:end])
+        except ValueError:
+            return
+        if number < 0:
+            self._table_red = True
+            for seen in self._table_blocks:
+                if seen.isValid():
+                    self._color_block(seen, COLOR_HIT)
+            self._table_blocks = []
 
     def _feed_output(self, text):
         """按行接收子进程输出：完整行着色，半行先缓冲。"""
@@ -719,6 +788,7 @@ class MainWindow(QMainWindow):
         for line in lines:
             self._insert_text(line + '\n', self._line_color(line))
             self._check_cashflow_rule(line)
+            self._check_table_rule(line)
 
     def _flush_line_buf(self):
         """把未以换行结束的残留内容按默认颜色输出。"""
@@ -732,6 +802,9 @@ class MainWindow(QMainWindow):
 
     def _clear_log(self):
         self._line_buf = ''
+        # 清空日志后表格状态一并复位，避免沿用上一轮的列位置
+        self._expect_header = False
+        self._reset_table()
         self.log.clear()
 
     def _cleanup_tmp(self):
